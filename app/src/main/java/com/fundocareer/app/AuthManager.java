@@ -389,19 +389,17 @@ public class AuthManager {
                 + "}";
 
         String js = "(function(){"
+                // Always update auth data (tokens may have changed between calls)
                 + "try{"
-                // Phase 5: Set localStorage keys that frontend API client reads
                 + "localStorage.setItem('fundocareer_access_token','" + safeAccessToken + "');"
                 + (refreshToken != null && !refreshToken.isEmpty()
                     ? "localStorage.setItem('fundocareer_refresh_token','" + safeRefreshToken + "');"
                     : "")
                 + "localStorage.setItem('fundocareer_user','" + safeJs(userJson) + "');"
                 + "localStorage.setItem('fundocareer_auth_state','true');"
-                // Phase 5: Backward compat — existing frontend keys
                 + "localStorage.setItem('FUNDOCareer_ACCESS_TOKEN','" + safeAccessToken + "');"
                 + "localStorage.setItem('FUNDOCareer_USER',JSON.stringify(" + userJson + "));"
-                // Phase 5: Set global auth object
-                + "window.__fundocareerAuthInjected=true;"
+                + "}catch(e){}"
                 + "window.FundoCareerAuthBridge=window.AndroidAuthBridge;"
                 + "window.__FUNDOCAREER_AUTH__={"
                 + "accessToken:'" + safeAccessToken + "',"
@@ -411,6 +409,9 @@ public class AuthManager {
                 + "image:'" + safeImage + "',"
                 + "role:'" + safeRole + "'"
                 + "};"
+                // Only set up interceptors once per page load
+                + "if(window.__fundocareerAuthInjected)return;"
+                + "window.__fundocareerAuthInjected=true;"
                 // Fetch interceptor with API URL rewriting and auth header injection
                 + "var origFetch=window.fetch;"
                 + "window.fetch=function(u,o){"
@@ -452,7 +453,7 @@ public class AuthManager {
                 + "}"
                 + "return origSend.call(this,b);"
                 + "};"
-                // Phase 5: Dispatch both old and new custom events
+                // Dispatch events
                 + "try{"
                 + "document.dispatchEvent(new CustomEvent('fundocareer-auth-ready',{detail:window.__FUNDOCAREER_AUTH__}));"
                 + "}catch(ex){}"
@@ -460,7 +461,6 @@ public class AuthManager {
                 + "window.dispatchEvent(new CustomEvent('fundocareer:auth-updated',{detail:{source:'android-native',isAuthenticated:true,user:" + userJson + "}}));"
                 + "}catch(ex){}"
                 + "console.log('[FundoCareer] Auth fully injected');"
-                + "}catch(e){console.warn('[FundoCareer] Auth inject error:',e);}"
                 + "})()";
         webView.evaluateJavascript(js, null);
         Log.i(TAG, "Auth state injected into WebView [" + safeEmail + "]");
@@ -490,6 +490,7 @@ public class AuthManager {
                 + "}";
 
         String js = "(function(){"
+                // Always update auth data (tokens may have changed)
                 + "try{"
                 + "localStorage.setItem('fundocareer_access_token','" + safeAccessToken + "');"
                 + (refreshToken != null && !refreshToken.isEmpty()
@@ -499,7 +500,7 @@ public class AuthManager {
                 + "localStorage.setItem('fundocareer_auth_state','true');"
                 + "localStorage.setItem('FUNDOCareer_ACCESS_TOKEN','" + safeAccessToken + "');"
                 + "localStorage.setItem('FUNDOCareer_USER',JSON.stringify(" + userJson + "));"
-                + "window.__fundocareerAuthInjected=true;"
+                + "}catch(e){}"
                 + "window.FundoCareerAuthBridge=window.AndroidAuthBridge;"
                 + "window.__FUNDOCAREER_AUTH__={"
                 + "accessToken:'" + safeAccessToken + "',"
@@ -509,6 +510,9 @@ public class AuthManager {
                 + "image:'" + safeImage + "',"
                 + "role:'" + safeRole + "'"
                 + "};"
+                // Only set up interceptors once per page load
+                + "if(window.__fundocareerAuthInjected)return;"
+                + "window.__fundocareerAuthInjected=true;"
                 + "var origFetch=window.fetch;"
                 + "window.fetch=function(u,o){"
                 + "if(!o)o={};"
@@ -552,7 +556,6 @@ public class AuthManager {
                 + "document.dispatchEvent(new CustomEvent('fundocareer-auth-ready',{detail:window.__FUNDOCAREER_AUTH__}));"
                 + "window.dispatchEvent(new CustomEvent('fundocareer:auth-updated',{detail:{source:'android-native',isAuthenticated:true,user:" + userJson + "}}));"
                 + "console.log('[FundoCareer] Auth fully injected via explicit params');"
-                + "}catch(e){console.warn('[FundoCareer] Auth inject error:',e);}"
                 + "})()";
         webView.evaluateJavascript(js, null);
         Log.i(TAG, "Auth localStorage injected: hasAccessToken=" + (accessToken != null && !accessToken.isEmpty()) + " hasUser=" + (email != null && !email.isEmpty()));

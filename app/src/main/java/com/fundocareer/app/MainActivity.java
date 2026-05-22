@@ -1102,8 +1102,8 @@ public class MainActivity extends BridgeActivity {
                 String userJson = "{id:'" + safeUserId + "',email:'" + safeEmail + "',name:'" + safeName + "',image:'" + safeImage + "',role:'" + safeRole + "'}";
                 return "<script>"
                         + "(function(){"
+                        // localStorage (may throw DOMException before page ready — isolate it)
                         + "try{"
-                        // localStorage keys
                         + "localStorage.setItem('fundocareer_access_token','" + safeAccessToken + "');"
                         + (refreshToken != null && !refreshToken.isEmpty()
                             ? "localStorage.setItem('fundocareer_refresh_token','" + safeRefreshToken + "');"
@@ -1111,8 +1111,8 @@ public class MainActivity extends BridgeActivity {
                         + "localStorage.setItem('fundocareer_user','" + safeJs(userJson) + "');"
                         + "localStorage.setItem('fundocareer_auth_state','true');"
                         + "localStorage.setItem('FUNDOCareer_ACCESS_TOKEN','" + safeAccessToken + "');"
-                        // Global auth object
-                        + "window.__fundocareerAuthInjected=true;"
+                        + "}catch(e){}"
+                        // Global auth object (no localStorage dependency)
                         + "window.FundoCareerAuthBridge=window.AndroidAuthBridge;"
                         + "window.__FUNDOCAREER_AUTH__={"
                         + "accessToken:'" + safeAccessToken + "',"
@@ -1122,6 +1122,9 @@ public class MainActivity extends BridgeActivity {
                         + "image:'" + safeImage + "',"
                         + "role:'" + safeRole + "'"
                         + "};"
+                        // Only set up interceptors once per page load
+                        + "if(window.__fundocareerAuthInjected)return;"
+                        + "window.__fundocareerAuthInjected=true;"
                         // Fetch interceptor with API URL rewriting and auth header injection
                         + "var origFetch=window.fetch;"
                         + "window.fetch=function(u,o){"
@@ -1166,7 +1169,6 @@ public class MainActivity extends BridgeActivity {
                         // Events
                         + "document.dispatchEvent(new CustomEvent('fundocareer-auth-ready',{detail:window.__FUNDOCAREER_AUTH__}));"
                         + "window.dispatchEvent(new CustomEvent('fundocareer:auth-updated',{detail:{source:'android-native',isAuthenticated:true,user:" + userJson + "}}));"
-                        + "}catch(e){console.warn('[FundoCareer] AuthHTML inject error:',e);}"
                         + "})();"
                         + "</script>";
             }
@@ -1253,13 +1255,6 @@ public class MainActivity extends BridgeActivity {
                 if (url != null && (url.contains("/pricing") || url.contains("/plans")
                         || url.contains("/subscription") || url.contains("/billing"))) {
                     PaymentHandler.logPricingView();
-                }
-                if (authManager != null && authManager.isLoggedIn() && view != null) {
-                    try {
-                        authManager.injectAuthState(view);
-                    } catch (Exception e) {
-                        Log.w("FundoCareerApp", "Auth injection error on page finish", e);
-                    }
                 }
                 if (url != null) {
                     Log.i(TAG, "Loaded: " + url);
@@ -2327,10 +2322,7 @@ public class MainActivity extends BridgeActivity {
                 "window.__fundocareerNavigate=function(path){" +
                 "if(window.__FUNDOCAREER_ROUTER__&&typeof window.__FUNDOCAREER_ROUTER__.navigate==='function'){" +
                 "window.__FUNDOCAREER_ROUTER__.navigate(path);return true}" +
-                "if(window.history&&window.history.pushState){" +
-                "window.history.pushState(null,'',path);" +
-                "window.dispatchEvent(new CustomEvent('fundocareer:navigate',{detail:{path:path}}));return true}" +
-                "window.location.href=path;return false}})()";
+                "return false}})()";
         view.evaluateJavascript(js, null);
     }
 
