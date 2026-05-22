@@ -1,0 +1,19 @@
+{
+  "name": "fundocareer",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "cap:sync": "npx cap sync android",
+    "cap:copy": "npx cap copy android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.0",
+    "@capacitor/app": "^6.0.2",
+    "@capacitor/core": "^6.1.0",
+    "@capacitor/splash-screen": "^6.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.0"
+  }
+}

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Debug-only AndroidManifest overlay.
+    Merged into the main manifest during debug builds.
+    Adds permissions and flags useful for testing but inappropriate for production.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+        Location permissions — not used in production, but useful
+        when testing geolocation features in the WebView.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!--
+        Allow cleartext HTTP for local/staging servers during debugging.
+        Production blocks cleartext via network_security_config.xml.
+    -->
+    <application
+        android:usesCleartextTraffic="true"
+        android:allowBackup="true"
+        tools:replace="android:usesCleartextTraffic,android:allowBackup" />
+</manifest>

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Debug build uses a different app name so both can be installed side-by-side -->
+    <string name="app_name">FundoCareer Debug</string>
+</resources>

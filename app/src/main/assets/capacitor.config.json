@@ -1,0 +1,23 @@
+{
+  "appId": "com.fundocareer.app",
+  "appName": "FundoCareer",
+  "webDir": "www",
+  "server": {
+    "url": "https://www.fundocareer.com/",
+    "allowNavigation": [
+      "fundocareer.com",
+      "*.fundocareer.com"
+    ],
+    "androidScheme": "https",
+    "cleartext": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1500,
+      "launchAutoHide": true,
+      "backgroundColor": "#FFFFFF",
+      "androidSplashResourceName": "splash_background",
+      "showSpinner": false
+    }
+  }
+}

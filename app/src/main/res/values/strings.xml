@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">FundoCareer</string>
+    <!-- Google Sign-In: OAuth 2.0 Web Client ID from Google Cloud Console.
+         Used to request an ID token during native sign-in.
+         Find this at: https://console.cloud.google.com/apis/credentials
+         Create a credential of type "Web application" and copy the client ID here. -->
+    <string name="default_web_client_id" translatable="false">293578181540-j4h85uif4hg4q82q9smbeljpgj0gl8c1.apps.googleusercontent.com</string>
+</resources>

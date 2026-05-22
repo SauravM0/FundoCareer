@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="nav_home" type="id"/>
+    <item name="nav_builder" type="id"/>
+    <item name="nav_jobs" type="id"/>
+    <item name="nav_ats" type="id"/>
+    <item name="nav_profile" type="id"/>
+    <item name="nav_more" type="id"/>
+    <item name="nav_more_smart_apply" type="id"/>
+    <item name="nav_more_mock" type="id"/>
+    <item name="nav_more_pricing" type="id"/>
+</resources>

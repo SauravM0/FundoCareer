@@ -1,0 +1,253 @@
+// This is your Prisma schema file
+// Learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = []
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ========================
+// USER & AUTHENTICATION
+// ========================
+
+model User {
+  id               Int      @id @default(autoincrement())
+  email            String   @unique
+  name             String?
+  image            String?  @db.Text
+  authProvider     String?  // 'google', 'github', etc.
+  authProviderId   String?  @unique
+  role             String   @default("user") // 'user', 'admin'
+  status           String   @default("activated") // 'activated', 'suspended'
+  isVerified       Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  resumes          Resume[]
+  sourceResumes    SourceResume[]
+  subscriptions    Subscription[]
+  userActivities   UserActivity[]
+  mobileAuthCodes  MobileAuthCode[]
+  refreshTokens    RefreshToken[]
+
+  @@index([email])
+  @@index([authProviderId])
+  @@map("user")
+}
+
+// ========================
+// RESUME MANAGEMENT
+// ========================
+
+model Resume {
+  id                   Int      @id @default(autoincrement())
+  userId               Int
+  title                String   @default("Untitled Resume")
+  template             String   @default("classic")
+  accent_color         String   @default("#3B82F6")
+  public               Boolean  @default(false)
+  
+  // Resume Content (stored as JSON)
+  formatting           Json?
+  personal_info        Json?
+  professional_summary String?  @db.Text
+  sections             Json?    // Array of sections (experience, education, skills, etc.)
+  
+  // File references (if uploaded)
+  fileUrl              String?  @db.Text
+  fileName             String?
+  
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  // Relations
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("resume")
+}
+
+// Source Resume Library (uploaded files)
+model SourceResume {
+  id                Int      @id @default(autoincrement())
+  user_id           Int
+  original_filename String
+  display_name      String
+  s3_object_key     String   @db.Text // File path or S3 URL
+  file_type         String   // 'pdf', 'docx', 'doc', 'txt'
+  file_size         Int
+  extracted_text    String?  @db.LongText
+  storage_provider  String   @default("local") // 'local', 's3'
+  status            String   @default("active") // 'active', 'deleted'
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  // Relations
+  user              User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, status])
+  @@map("source_resume")
+}
+
+// ========================
+// MONETIZATION & PLANS
+// ===
+// =====================
+
+model Plan {
+  id               Int      @id @default(autoincrement())
+  name             String   @unique
+  description      String?  @db.Text
+  price            Decimal  @db.Decimal(10, 2)
+  currency         String   @default("USD")
+  duration_days    Int
+  tokens_included  Int      @default(0)
+  is_active        Boolean  @default(true)
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  // Relations
+  planFeatures     PlanFeature[]
+  subscriptions    Subscription[]
+
+  @@map("plan")
+}
+
+model Feature {
+  id               Int      @id @default(autoincrement())
+  name             String   @unique
+  description      String?  @db.Text
+  token_price      Int      @default(0)
+  is_active        Boolean  @default(true)
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  // Relations
+  planFeatures     PlanFeature[]
+  userActivities   UserActivity[]
+
+  @@map("feature")
+}
+
+model PlanFeature {
+  id         Int @id @default(autoincrement())
+  plan_id    Int
+  feature_id Int
+
+  // Relations
+  plan       Plan    @relation(fields: [plan_id], references: [id], onDelete: Cascade)
+  feature    Feature @relation(fields: [feature_id], references: [id], onDelete: Cascade)
+
+  @@unique([plan_id, feature_id])
+  @@map("plan_feature")
+}
+
+model Subscription {
+  id               Int      @id @default(autoincrement())
+  user_id          Int
+  plan_id          Int
+  status           String   @default("active") // 'active', 'expired', 'cancelled'
+  tokens_remaining Int      @default(0)
+  start_at         DateTime @default(now())
+  end_at           DateTime
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  // Relations
+  user             User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  plan             Plan     @relation(fields: [plan_id], references: [id])
+  userActivities   UserActivity[]
+
+  @@index([user_id, status])
+  @@index([end_at])
+  @@map("subscription")
+}
+
+// ========================
+// ACTIVITY TRACKING
+// ========================
+
+model UserActivity {
+  id              Int      @id @default(autoincrement())
+  user_id         Int
+  subscription_id Int?
+  feature_id      Int
+  tokens_used     Int      @default(0)
+  created_at      DateTime @default(now())
+
+  // Relations
+  user            User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  subscription    Subscription? @relation(fields: [subscription_id], references: [id])
+  feature         Feature       @relation(fields: [feature_id], references: [id])
+
+  @@index([user_id, created_at])
+  @@index([feature_id])
+  @@map("user_activity")
+}
+
+// ========================
+// RESUME TEMPLATES
+// ========================
+
+model ResumeTemplate {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?  @db.Text
+  category    String?
+  thumbnail   String?  @db.Text
+  is_premium  Boolean  @default(false)
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@index([category])
+  @@index([is_active])
+  @@map("resume_template")
+}
+
+// ========================
+// MOBILE AUTH
+// ========================
+
+model MobileAuthCode {
+  id         Int       @id @default(autoincrement())
+  codeHash   String    @unique
+  userId     Int
+  platform   String?   // 'android', 'ios'
+  deviceId   String?
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  // Relations
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([codeHash])
+  @@index([userId])
+  @@map("mobile_auth_code")
+}
+
+model RefreshToken {
+  id         Int       @id @default(autoincrement())
+  tokenHash  String    @unique
+  userId     Int
+  platform   String?
+  deviceId   String?
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  // Relations
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tokenHash])
+  @@index([userId])
+  @@map("refresh_token")
+}

@@ -1,0 +1,11 @@
+{
+  "server": {
+    "url": "https://www.fundocareer.com/",
+    "androidScheme": "https",
+    "cleartext": false,
+    "allowNavigation": [
+      "fundocareer.com",
+      "www.fundocareer.com"
+    ]
+  }
+}

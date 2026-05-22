@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="fundocareer_secure_store.xml"/>
+        <exclude domain="sharedpref" path="fundocareer_secure_store_fallback.xml"/>
+    </cloud-backup>
+</data-extraction-rules>
