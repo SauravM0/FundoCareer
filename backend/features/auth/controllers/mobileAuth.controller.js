@@ -126,6 +126,10 @@ export const exchangeAndroidIdToken = async (req, res) => {
       return res.status(400).json({ success: false, code: 'GOOGLE_TOKEN_REQUIRED', message: 'Google ID token is required.' });
     }
 
+    if (!deviceId) {
+      return res.status(400).json({ success: false, code: 'DEVICE_ID_REQUIRED', message: 'deviceId is required to prevent cross-device session revocation.' });
+    }
+
     let payload;
     try {
       const ticket = await googleIdTokenClient.verifyIdToken({
@@ -258,6 +262,10 @@ export const exchangeMobileCode = async (req, res) => {
 
     if (!code) {
       return res.status(400).json({ success: false, code: 'CODE_REQUIRED', message: 'Authorization code is required.' });
+    }
+
+    if (!deviceId) {
+      return res.status(400).json({ success: false, code: 'DEVICE_ID_REQUIRED', message: 'deviceId is required to prevent cross-device session revocation.' });
     }
 
     const codeHash = hashToken(code);

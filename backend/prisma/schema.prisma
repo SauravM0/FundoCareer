@@ -251,3 +251,95 @@ model RefreshToken {
   @@index([userId])
   @@map("refresh_token")
 }
+
+// ========================
+// SCHEDULER & JOB ALERT SYNC
+// ========================
+
+model SchedulerLock {
+  id               Int      @id @default(autoincrement())
+  userEmail        String
+  preferenceSetId  String
+  deviceId         String
+  deviceType       String       // "android" | "electron"
+  appVersion       String?
+  acquiredAt       DateTime     @default(now())
+  expiresAt        DateTime
+  lastSeenAt       DateTime     @default(now())
+
+  @@unique([userEmail, preferenceSetId])
+  @@index([expiresAt])
+  @@map("scheduler_lock")
+}
+
+model EmailedJobFingerprint {
+  id            Int      @id @default(autoincrement())
+  userEmail     String
+  preferenceId  String
+  fingerprint   String
+  emailedAt     DateTime @default(now())
+  emailRecordId String?
+
+  @@unique([userEmail, fingerprint])
+  @@index([userEmail, preferenceId])
+  @@map("emailed_job_fingerprint")
+}
+
+model SchedulerDeviceState {
+  id                    Int      @id @default(autoincrement())
+  userEmail             String
+  deviceId              String
+  deviceType            String       // "android" | "electron"
+  appVersion            String?
+  deviceName            String?      // Human-readable device name, e.g. "Pixel 8"
+  isActiveDevice        Boolean      @default(false) // At most one active device per user
+  activeDeviceLastSeenAt DateTime?
+  activatedAt           DateTime?
+  stoppedAt             DateTime?    // When the scheduler was stopped on this device
+  lastSetupEmailAt      DateTime?    // When the setup confirmation email was last sent
+  lastJobEmailAt        DateTime?    // When the last job alert email was sent
+  intervalMinutes       Int?         // Search interval in minutes
+  lastSyncAt            DateTime     @default(now())
+  lastSeenAt            DateTime     @default(now())
+  preferencesJson       String?      @db.LongText
+  schedulerStateJson    String?      @db.LongText
+
+  @@unique([userEmail, deviceId])
+  @@index([userEmail])
+  @@index([userEmail, isActiveDevice])
+  @@index([lastSeenAt])
+  @@map("scheduler_device_state")
+}
+
+model EmailSentHistory {
+  id                     Int      @id @default(autoincrement())
+  userEmail              String
+  schedulerPreferenceId  String
+  emailSentAt            DateTime
+  jobsSentCount          Int
+  pdfAttached            Boolean  @default(true)
+  searchTitle            String?
+
+  @@index([userEmail])
+  @@index([userEmail, schedulerPreferenceId])
+  @@map("email_sent_history")
+}
+
+model SchedulerRunHistory {
+  id            Int      @id @default(autoincrement())
+  userEmail     String
+  deviceId      String
+  preferenceId  String
+  runId         String?
+  startedAt     DateTime
+  completedAt   DateTime?
+  status        String       // "running" | "success" | "failed"
+  jobsFound     Int          @default(0)
+  jobsNew       Int          @default(0)
+  errorMessage  String?
+  triggeredBy   String       // "scheduler" | "manual"
+
+  @@index([userEmail])
+  @@index([userEmail, preferenceId])
+  @@map("scheduler_run_history")
+}

@@ -1,6 +1,7 @@
 package com.fundocareer.app;
 
 import android.app.Activity;
+import android.app.AlarmManager;
 import android.app.DownloadManager;
 import android.content.ContentValues;
 import android.content.Context;
@@ -9,6 +10,7 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
+import android.os.PowerManager;
 import android.provider.MediaStore;
 import android.provider.Settings;
 import android.webkit.MimeTypeMap;
@@ -16,6 +18,7 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.core.app.ActivityCompat;
+import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
 
 public class PermissionCoordinator {
@@ -44,6 +47,16 @@ public class PermissionCoordinator {
         }
     }
 
+    public static boolean hasCameraPermission(Context context) {
+        try {
+            return ContextCompat.checkSelfPermission(
+                    context, android.Manifest.permission.CAMERA
+            ) == PackageManager.PERMISSION_GRANTED;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     public static boolean hasNotificationPermission(Context context) {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -52,6 +65,38 @@ public class PermissionCoordinator {
                 ) == PackageManager.PERMISSION_GRANTED;
             }
             return true;
+        } catch (Exception e) {
+            return Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU;
+        }
+    }
+
+    public static boolean hasExactAlarmPermission(Context context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            try {
+                AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+                return am != null && am.canScheduleExactAlarms();
+            } catch (Exception e) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public static boolean isIgnoringBatteryOptimizations(Context context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+                return pm != null && pm.isIgnoringBatteryOptimizations(context.getPackageName());
+            } catch (Exception e) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public static boolean areNotificationsEnabled(Context context) {
+        try {
+            return NotificationManagerCompat.from(context).areNotificationsEnabled();
         } catch (Exception e) {
             return Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU;
         }
@@ -99,6 +144,57 @@ public class PermissionCoordinator {
             Toast.makeText(activity,
                     "Battery optimization settings unavailable",
                     Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    public static void openExactAlarmSettings(Activity activity) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                Intent intent = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
+                intent.setData(Uri.parse("package:" + activity.getPackageName()));
+                activity.startActivity(intent);
+            } else {
+                openAppSettings(activity);
+            }
+        } catch (Exception e) {
+            openAppSettings(activity);
+        }
+    }
+
+    public static void openNotificationSettings(Activity activity) {
+        try {
+            Intent intent = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+            intent.putExtra(Settings.EXTRA_APP_PACKAGE, activity.getPackageName());
+            activity.startActivity(intent);
+        } catch (Exception e) {
+            openAppSettings(activity);
+        }
+    }
+
+    public static void openDataUsageSettings(Activity activity) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                Intent intent = new Intent(Settings.ACTION_IGNORE_BACKGROUND_DATA_RESTRICTIONS_SETTINGS);
+                intent.setData(Uri.parse("package:" + activity.getPackageName()));
+                activity.startActivity(intent);
+            } else {
+                openAppSettings(activity);
+            }
+        } catch (Exception e) {
+            openAppSettings(activity);
+        }
+    }
+
+    public static void openAutostartGuidance(Activity activity) {
+        try {
+            Toast.makeText(activity,
+                    "Open Settings > Apps > FundoCareer and enable autostart",
+                    Toast.LENGTH_LONG).show();
+            openAppSettings(activity);
+        } catch (Exception e) {
+            Toast.makeText(activity,
+                    "Please enable autostart for FundoCareer in system Settings",
+                    Toast.LENGTH_LONG).show();
         }
     }
 

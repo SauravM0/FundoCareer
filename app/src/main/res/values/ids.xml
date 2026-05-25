@@ -9,4 +9,5 @@
     <item name="nav_more_smart_apply" type="id"/>
     <item name="nav_more_mock" type="id"/>
     <item name="nav_more_pricing" type="id"/>
+    <item name="nav_job_alerts" type="id"/>
 </resources>

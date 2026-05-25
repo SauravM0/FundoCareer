@@ -2,20 +2,23 @@ import java.io.File
 
 // ------------------------------------------------------------------
 // Local config loader: reads key=value pairs from project-root/.env
-// Priority: env var > .env file > built-in default
+// and backend/.env (backend file takes priority over root).
+// Priority: env var > backend/.env > root/.env > built-in default
 // ------------------------------------------------------------------
 fun loadDotEnv(projectRoot: File): Map<String, String> {
-    val envFile = File(projectRoot, ".env")
-    if (!envFile.exists()) return emptyMap()
     val props = mutableMapOf<String, String>()
-    envFile.forEachLine { line ->
-        val trimmed = line.trim()
-        if (trimmed.isNotBlank() && !trimmed.startsWith("#")) {
-            val parts = trimmed.split("=", limit = 2)
-            if (parts.size == 2) {
-                val key = parts[0].trim()
-                val value = parts[1].trim().removeSurrounding("'").removeSurrounding("\"")
-                props[key] = value
+    listOf(File(projectRoot, ".env"), File(projectRoot, "backend/.env")).forEach { envFile ->
+        if (envFile.exists()) {
+            envFile.forEachLine { line ->
+                val trimmed = line.trim()
+                if (trimmed.isNotBlank() && !trimmed.startsWith("#")) {
+                    val parts = trimmed.split("=", limit = 2)
+                    if (parts.size == 2) {
+                        val key = parts[0].trim()
+                        val value = parts[1].trim().removeSurrounding("'").removeSurrounding("\"")
+                        props[key] = value
+                    }
+                }
             }
         }
     }
@@ -29,6 +32,9 @@ fun resolveConfig(envName: String, dotEnvKey: String, fallback: String): String 
 
 plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.kotlin.compose)
 }
 
 android {
@@ -87,8 +93,13 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    kotlin {
+        jvmToolchain(17)
+    }
+
     buildFeatures {
         buildConfig = true
+        compose = true
     }
 
     packaging {
@@ -112,6 +123,26 @@ dependencies {
     implementation(libs.capacitor.android)
     implementation(libs.capacitor.splash.screen)
     implementation(libs.capacitor.app)
+
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+
+    implementation(libs.okhttp)
+    implementation(libs.jsoup)
+    implementation(libs.androidx.work.runtime.ktx)
+
+    // Compose
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.ui.graphics)
+    implementation(libs.androidx.compose.ui.tooling.preview)
+    implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material.icons.extended)
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    debugImplementation(libs.androidx.compose.ui.tooling)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

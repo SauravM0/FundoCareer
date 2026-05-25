@@ -30,6 +30,7 @@
     "mammoth": "^1.11.0",
     "mariadb": "^3.5.1",
     "multer": "^2.1.0",
+    "nodemailer": "^8.0.7",
     "openai": "^6.25.0",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",

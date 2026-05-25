@@ -49,6 +49,12 @@ build/
 *.cert
 secrets/
 
+# --- Firebase / Service Account JSONs (never commit) ---
+**/google-services.json
+**/firebase-adminsdk*.json
+**/firebase*.json
+**/service-account*.json
+
 # --- OS files ---
 .DS_Store
 .DS_Store?

@@ -7,7 +7,6 @@ import android.graphics.Bitmap;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
-import android.media.AudioManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -30,7 +29,6 @@ import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
-import android.webkit.CookieManager;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
@@ -38,6 +36,7 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -46,9 +45,11 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.core.content.ContextCompat;
 import androidx.core.splashscreen.SplashScreen;
-import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 
+import com.fundocareer.app.core.jobalerts.JobAlertLifecycle;
+import com.fundocareer.app.core.jobs.JobsPageActivity;
 import com.getcapacitor.BridgeActivity;
 import com.google.android.gms.auth.api.signin.GoogleSignIn;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
@@ -61,11 +62,6 @@ import com.google.android.material.card.MaterialCardView;
 
 import org.json.JSONObject;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -97,6 +93,8 @@ public class MainActivity extends BridgeActivity {
 
     private int activeNavId = R.id.nav_home;
     private final java.util.Map<Integer, View> navItemViews = new java.util.HashMap<>();
+    private MaterialCardView navCapsule;
+    private FrameLayout loginOverlay;
 
     private static class NavItemData {
         final int id;
@@ -119,6 +117,7 @@ public class MainActivity extends BridgeActivity {
     private SecureTokenStore tokenStore;
     private AuthManager authManager;
     private AuthBridge authBridge;
+    private NavigationPolicy navPolicy;
     private GoogleSignInClient googleSignInClient;
     private boolean authInitDone = false;
     private String webViewUserAgent;
@@ -193,6 +192,60 @@ public class MainActivity extends BridgeActivity {
                                         android.Manifest.permission.RECORD_AUDIO);
                                 cb.onDenied(neverAsk);
                             }
+                        }
+                    }
+            );
+
+    private PermissionCoordinator.PermissionCallback pendingCameraCallback;
+
+    private final ActivityResultLauncher<String> cameraLauncher =
+            registerForActivityResult(
+                    new ActivityResultContracts.RequestPermission(),
+                    granted -> {
+                        PermissionCoordinator.PermissionCallback cb = pendingCameraCallback;
+                        pendingCameraCallback = null;
+                        if (cb != null) {
+                            if (granted) {
+                                cb.onGranted();
+                            } else {
+                                boolean neverAsk = PermissionCoordinator.isNeverAskAgain(
+                                        MainActivity.this,
+                                        android.Manifest.permission.CAMERA);
+                                cb.onDenied(neverAsk);
+                            }
+                        }
+                    }
+            );
+
+    private PermissionRequest pendingPermissionRequest;
+
+    private final ActivityResultLauncher<String[]> micAndCameraLauncher =
+            registerForActivityResult(
+                    new ActivityResultContracts.RequestMultiplePermissions(),
+                    result -> {
+                        PermissionRequest req = pendingPermissionRequest;
+                        pendingPermissionRequest = null;
+                        if (req == null) return;
+                        boolean audioGranted = Boolean.TRUE.equals(
+                                result.get(android.Manifest.permission.RECORD_AUDIO));
+                        boolean cameraGranted = Boolean.TRUE.equals(
+                                result.get(android.Manifest.permission.CAMERA));
+                        List<String> grantedResources = new ArrayList<>();
+                        for (String resource : req.getResources()) {
+                            if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource) && audioGranted) {
+                                grantedResources.add(resource);
+                            } else if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource) && cameraGranted) {
+                                grantedResources.add(resource);
+                            }
+                        }
+                        if (grantedResources.isEmpty()) {
+                            Log.i(TAG, "WebView permission denied by user: audio=" + audioGranted + " camera=" + cameraGranted);
+                            req.deny();
+                            if (micManager != null) micManager.onMicStopped();
+                        } else {
+                            Log.i(TAG, "WebView permission granted: " + grantedResources);
+                            req.grant(grantedResources.toArray(new String[0]));
+                            if (audioGranted && micManager != null) micManager.onMicStarted();
                         }
                     }
             );
@@ -340,6 +393,8 @@ public class MainActivity extends BridgeActivity {
         authInitDone = true;
 
         tokenStore = new SecureTokenStore(this);
+        navPolicy = new NavigationPolicy(tokenStore);
+        updateNavVisibility(navPolicy.isUserLoggedIn());
         authManager = new AuthManager(this, tokenStore);
 
         GoogleSignInOptions gso = new GoogleSignInOptions.Builder(
@@ -512,6 +567,9 @@ public class MainActivity extends BridgeActivity {
 
                     Log.i(TAG, "Backend exchange succeeded: hasAccessToken=" + (accessToken != null && !accessToken.isEmpty()) + " length=" + (accessToken != null ? accessToken.length() : 0));
 
+                    // Save previous user email before overwriting tokens
+                    final String previousEmail = authManager.getTokenStore().getUserEmail();
+
                     // Store tokens natively
                     if (accessToken != null && !accessToken.isEmpty()) {
                         // Store tokens in native storage (async is fine for persistence)
@@ -557,12 +615,22 @@ public class MainActivity extends BridgeActivity {
                         // Phase 6: Verify profile from WebView context
                         authManager.verifyProfileAfterInjection(wv);
 
-                        // Navigate to profile after a short delay for injection to complete
+                        // Resume any paused job alert preferences (pass previous email for same-account detection)
+                        JobAlertLifecycle.onLogin(MainActivity.this, email, previousEmail);
+
+                        // Phase 6: Show bottom navigation after successful login
+                        showNav();
+                        hideLoginOverlay();
+
+                        // Phase 6: Navigate to home after successful login
                         wv.postDelayed(() -> {
                             WebView wv2 = getSafeWebView();
                             if (wv2 != null) {
-                                Log.i(TAG, "Navigate to profile after successful login");
-                                wv2.loadUrl(BuildConfig.FRONTEND_URL + "/profile");
+                                String postLoginUrl = (navPolicy != null)
+                                        ? navPolicy.getPostLoginRoute()
+                                        : AppConfig.getDefaultUrl();
+                                Log.i(TAG, "Navigate to home after successful login");
+                                wv2.loadUrl(postLoginUrl);
                             }
                         }, 500);
                     }
@@ -594,13 +662,30 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void performLogout() {
-        WebView wv = getSafeWebView();
-        if (wv == null) return;
-
         Log.i(TAG, "Logout requested");
         isGoogleLoginInProgress = false;
         loginStartTime = 0;
         timeoutHandler.removeCallbacks(loginWatchdog);
+
+        String userEmail = tokenStore != null ? tokenStore.getUserEmail() : null;
+        if (userEmail == null || userEmail.isEmpty()) {
+            Log.i(TAG, "No user to logout, navigating home");
+            WebView wv = getSafeWebView();
+            if (wv != null) {
+                wv.loadUrl(AppConfig.getDefaultUrl());
+            }
+            return;
+        }
+
+        JobAlertLifecycle.showLogoutWarning(MainActivity.this, userEmail, () -> {
+            runOnUiThread(() -> performLogoutCleanup(userEmail));
+            return null;
+        });
+    }
+
+    private void performLogoutCleanup(String userEmail) {
+        Log.i(TAG, "Proceeding with logout cleanup for " + userEmail);
+        hideLoginOverlay();
 
         try {
             googleSignInClient.signOut();
@@ -609,8 +694,12 @@ public class MainActivity extends BridgeActivity {
             Log.w(TAG, "Google sign-out failed", e);
         }
 
+        WebView wv = getSafeWebView();
+        if (wv == null) return;
+
         authManager.logout(wv, () -> {
             runOnUiThread(() -> {
+                hideNav();
                 setActiveNavItem(R.id.nav_home);
                 WebView wv2 = getSafeWebView();
                 if (wv2 != null) {
@@ -731,6 +820,7 @@ public class MainActivity extends BridgeActivity {
         createCapsuleNav(root);
 
         setContentView(root);
+        createLoginOverlay();
         configureWebView(webView);
     }
 
@@ -748,6 +838,9 @@ public class MainActivity extends BridgeActivity {
         webView.getSettings().setAllowContentAccess(true);
         webView.getSettings().setCacheMode(WebSettings.LOAD_DEFAULT);
         webView.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        webView.getSettings().setMediaPlaybackRequiresUserGesture(false);
+        webView.getSettings().setJavaScriptCanOpenWindowsAutomatically(true);
+        webView.getSettings().setSupportMultipleWindows(true);
 
         String ua = webView.getSettings().getUserAgentString();
         if (ua != null && !ua.contains("FundoCareerAndroidApp")) {
@@ -829,41 +922,6 @@ public class MainActivity extends BridgeActivity {
 
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-                if (request != null && request.getUrl() != null) {
-                    String reqUrl = request.getUrl().toString();
-
-                    // Intercept API calls to production frontend and redirect to local backend
-                    if (reqUrl.startsWith(BuildConfig.FRONTEND_URL + "/api/")) {
-                        String localUrl = BuildConfig.API_BASE_URL
-                                + reqUrl.substring(BuildConfig.FRONTEND_URL.length());
-                        String method = request.getMethod();
-
-                        // Forward GET/HEAD/OPTIONS (no body needed in shouldInterceptRequest)
-                        if ("GET".equalsIgnoreCase(method)
-                                || "HEAD".equalsIgnoreCase(method)
-                                || "OPTIONS".equalsIgnoreCase(method)) {
-                            WebResourceResponse forwarded = forwardApiRequest(
-                                    localUrl, method, request.getRequestHeaders());
-                            if (forwarded != null) return forwarded;
-                        } else {
-                            Log.d(TAG, "API body request not forwarded in shouldInterceptRequest: "
-                                    + method + " " + reqUrl
-                                    + " (JS interceptor handles this)");
-                        }
-                        // For body requests, fall through to let the JS interceptor handle it
-                    }
-
-                    boolean isMainHtml = request.isForMainFrame();
-                    String url = isMainHtml ? reqUrl : null;
-
-                    if (isMainHtml && (url.startsWith("http:") || url.startsWith("https:"))
-                            && isLikelyHtmlPage(url)
-                            && authManager != null && authManager.isLoggedIn()) {
-                        WebResourceResponse injected = fetchAndInjectAuthState(url);
-                        if (injected != null) return injected;
-                    }
-                }
-
                 if (originalClient != null) {
                     try {
                         return originalClient.shouldInterceptRequest(view, request);
@@ -872,313 +930,6 @@ public class MainActivity extends BridgeActivity {
                     }
                 }
                 return null;
-            }
-
-            private WebResourceResponse forwardApiRequest(String url, String method,
-                                                           Map<String, String> headers) {
-                HttpURLConnection conn = null;
-                try {
-                    URL urlObj = new URL(url);
-                    conn = (HttpURLConnection) urlObj.openConnection();
-                    conn.setRequestMethod(method);
-                    conn.setInstanceFollowRedirects(true);
-                    conn.setConnectTimeout(10000);
-                    conn.setReadTimeout(10000);
-
-                    if (headers != null) {
-                        for (Map.Entry<String, String> entry : headers.entrySet()) {
-                            String key = entry.getKey();
-                            if (key != null && !key.equalsIgnoreCase("Host")
-                                    && !key.equalsIgnoreCase("Content-Length")
-                                    && !key.equalsIgnoreCase("Transfer-Encoding")
-                                    && !key.equalsIgnoreCase("Accept-Encoding")) {
-                                conn.setRequestProperty(key, entry.getValue());
-                            }
-                        }
-                    }
-
-                    // Belt-and-suspenders: add Authorization from token store if not already present
-                    // This catches API requests where the JS interceptor failed to add the header
-                    // (e.g., fetch(Request) objects, timing races, etc.)
-                    boolean hasAuth = false;
-                    if (headers != null) {
-                        for (String key : headers.keySet()) {
-                            if ("authorization".equalsIgnoreCase(key)) {
-                                hasAuth = true;
-                                break;
-                            }
-                        }
-                    }
-                    if (!hasAuth && authManager != null && authManager.isLoggedIn()) {
-                        String at = authManager.getTokenStore().getAccessToken();
-                        if (at != null && !at.isEmpty()) {
-                            conn.setRequestProperty("Authorization", "Bearer " + at);
-                            Log.d(TAG, "forwardApiRequest: added auth header for " + method + " " + url);
-                        }
-                    }
-
-                    int statusCode = conn.getResponseCode();
-                    String contentType = conn.getContentType();
-                    String mimeType = "application/octet-stream";
-                    String encoding = "UTF-8";
-                    if (contentType != null) {
-                        String[] parts = contentType.split(";");
-                        if (parts.length > 0) mimeType = parts[0].trim();
-                        for (String part : parts) {
-                            part = part.trim();
-                            if (part.startsWith("charset=")) {
-                                encoding = part.substring(8).trim();
-                            }
-                        }
-                    }
-
-                    InputStream inputStream;
-                    try {
-                        inputStream = conn.getInputStream();
-                    } catch (Exception e) {
-                        inputStream = conn.getErrorStream();
-                    }
-                    if (inputStream == null) return null;
-
-                    ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-                    byte[] buf = new byte[8192];
-                    int len;
-                    while ((len = inputStream.read(buf)) != -1) {
-                        buffer.write(buf, 0, len);
-                    }
-                    inputStream.close();
-
-                    byte[] responseBytes = buffer.toByteArray();
-                    InputStream responseStream = new ByteArrayInputStream(responseBytes);
-
-                    WebResourceResponse response = new WebResourceResponse(mimeType, encoding, responseStream);
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                        response.setStatusCodeAndReasonPhrase(statusCode, conn.getResponseMessage());
-                        Map<String, String> responseHeaders = new HashMap<>();
-                        for (Map.Entry<String, List<String>> entry : conn.getHeaderFields().entrySet()) {
-                            String rKey = entry.getKey();
-                            if (rKey != null && !rKey.equalsIgnoreCase("Content-Encoding")
-                                    && !rKey.equalsIgnoreCase("Content-Length")
-                                    && !rKey.equalsIgnoreCase("Transfer-Encoding")) {
-                                responseHeaders.put(rKey, entry.getValue().get(0));
-                            }
-                        }
-                        response.setResponseHeaders(responseHeaders);
-                    }
-
-                    Log.i(TAG, "API forwarded: " + method + " " + url + " -> " + statusCode);
-                    return response;
-                } catch (Exception e) {
-                    Log.w(TAG, "Error forwarding API: " + url + " - " + e.getMessage());
-                    return null;
-                } finally {
-                    if (conn != null) conn.disconnect();
-                }
-            }
-
-            private boolean isLikelyHtmlPage(String url) {
-                String path = Uri.parse(url).getPath();
-                if (path == null || path.equals("/") || path.isEmpty()) return true;
-                int dot = path.lastIndexOf('.');
-                if (dot < 0) return true;
-                String ext = path.substring(dot).toLowerCase(Locale.ROOT);
-                return ext.equals(".html") || ext.equals(".htm") || ext.equals(".php")
-                        || ext.equals(".aspx") || ext.equals(".jsp");
-            }
-
-            private WebResourceResponse fetchAndInjectAuthState(String url) {
-                HttpURLConnection conn = null;
-                try {
-                    URL urlObj = new URL(url);
-                    conn = (HttpURLConnection) urlObj.openConnection();
-                    conn.setInstanceFollowRedirects(true);
-                    conn.setConnectTimeout(10000);
-                    conn.setReadTimeout(10000);
-                    conn.setRequestProperty("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
-                    if (webViewUserAgent != null) {
-                        conn.setRequestProperty("User-Agent", webViewUserAgent);
-                    }
-                    String cookies = CookieManager.getInstance().getCookie(url);
-                    if (cookies != null && !cookies.isEmpty()) {
-                        conn.setRequestProperty("Cookie", cookies);
-                    }
-                    int statusCode = conn.getResponseCode();
-                    String contentType = conn.getContentType();
-                    if (contentType == null || !contentType.contains("text/html")) {
-                        Log.i(TAG, "Non-HTML response for " + url + ": " + contentType);
-                        return null;
-                    }
-                    String mimeType = "text/html";
-                    String encoding = "UTF-8";
-                    if (contentType != null) {
-                        String[] parts = contentType.split(";");
-                        if (parts.length > 0) mimeType = parts[0].trim();
-                        for (String part : parts) {
-                            part = part.trim();
-                            if (part.startsWith("charset=")) {
-                                encoding = part.substring(8).trim();
-                            }
-                        }
-                    }
-                    InputStream inputStream;
-                    try {
-                        inputStream = conn.getInputStream();
-                    } catch (Exception e) {
-                        inputStream = conn.getErrorStream();
-                    }
-                    if (inputStream == null) return null;
-                    ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-                    byte[] buf = new byte[8192];
-                    int len;
-                    while ((len = inputStream.read(buf)) != -1) {
-                        buffer.write(buf, 0, len);
-                    }
-                    inputStream.close();
-                    String html = buffer.toString(encoding);
-                    String authScript = buildAuthScript();
-                    String injectedHtml;
-                    int headIdx = html.indexOf("<head");
-                    if (headIdx >= 0) {
-                        int headEnd = html.indexOf('>', headIdx);
-                        if (headEnd >= 0) {
-                            injectedHtml = html.substring(0, headEnd + 1) + authScript + html.substring(headEnd + 1);
-                        } else {
-                            injectedHtml = authScript + html;
-                        }
-                    } else {
-                        int htmlIdx = html.indexOf("<html");
-                        if (htmlIdx >= 0) {
-                            int htmlEnd = html.indexOf('>', htmlIdx);
-                            if (htmlEnd >= 0) {
-                                injectedHtml = html.substring(0, htmlEnd + 1) + "<head>" + authScript + "</head>" + html.substring(htmlEnd + 1);
-                            } else {
-                                injectedHtml = "<head>" + authScript + "</head>" + html;
-                            }
-                        } else {
-                            injectedHtml = "<head>" + authScript + "</head>" + html;
-                        }
-                    }
-                    byte[] injectedBytes = injectedHtml.getBytes(encoding);
-                    InputStream injectedStream = new ByteArrayInputStream(injectedBytes);
-                    WebResourceResponse response = new WebResourceResponse(mimeType, encoding, injectedStream);
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                        response.setStatusCodeAndReasonPhrase(statusCode, conn.getResponseMessage());
-                        Map<String, String> headers = new HashMap<>();
-                        for (Map.Entry<String, List<String>> entry : conn.getHeaderFields().entrySet()) {
-                            String key = entry.getKey();
-                            if (key != null && !key.equalsIgnoreCase("Content-Encoding")
-                                    && !key.equalsIgnoreCase("Content-Length")
-                                    && !key.equalsIgnoreCase("Transfer-Encoding")) {
-                                headers.put(key, entry.getValue().get(0));
-                            }
-                        }
-                        response.setResponseHeaders(headers);
-                    }
-                    Log.i(TAG, "Auth state injected into HTML response for " + url);
-                    return response;
-                } catch (Exception e) {
-                    Log.w(TAG, "Error injecting auth into HTML: " + e.getMessage());
-                    return null;
-                } finally {
-                    if (conn != null) conn.disconnect();
-                }
-            }
-
-            private String buildAuthScript() {
-                String accessToken = authManager.getTokenStore().getAccessToken();
-                String refreshToken = authManager.getTokenStore().getRefreshToken();
-                String email = authManager.getTokenStore().getUserEmail();
-                String name = authManager.getTokenStore().getUserName();
-                String userId = authManager.getTokenStore().getUserId();
-                String image = authManager.getTokenStore().getUserImage();
-                String role = authManager.getTokenStore().getUserRole();
-                String safeAccessToken = safeJs(accessToken);
-                String safeRefreshToken = safeJs(refreshToken);
-                String safeEmail = safeJs(email);
-                String safeName = safeJs(name);
-                String safeUserId = safeJs(userId);
-                String safeImage = safeJs(image);
-                String safeRole = safeJs(role);
-                String userJson = "{id:'" + safeUserId + "',email:'" + safeEmail + "',name:'" + safeName + "',image:'" + safeImage + "',role:'" + safeRole + "'}";
-                return "<script>"
-                        + "(function(){"
-                        // localStorage (may throw DOMException before page ready — isolate it)
-                        + "try{"
-                        + "localStorage.setItem('fundocareer_access_token','" + safeAccessToken + "');"
-                        + (refreshToken != null && !refreshToken.isEmpty()
-                            ? "localStorage.setItem('fundocareer_refresh_token','" + safeRefreshToken + "');"
-                            : "")
-                        + "localStorage.setItem('fundocareer_user','" + safeJs(userJson) + "');"
-                        + "localStorage.setItem('fundocareer_auth_state','true');"
-                        + "localStorage.setItem('FUNDOCareer_ACCESS_TOKEN','" + safeAccessToken + "');"
-                        + "}catch(e){}"
-                        // Global auth object (no localStorage dependency)
-                        + "window.FundoCareerAuthBridge=window.AndroidAuthBridge;"
-                        + "window.__FUNDOCAREER_AUTH__={"
-                        + "accessToken:'" + safeAccessToken + "',"
-                        + "email:'" + safeEmail + "',"
-                        + "name:'" + safeName + "',"
-                        + "userId:'" + safeUserId + "',"
-                        + "image:'" + safeImage + "',"
-                        + "role:'" + safeRole + "'"
-                        + "};"
-                        // Only set up interceptors once per page load
-                        + "if(window.__fundocareerAuthInjected)return;"
-                        + "window.__fundocareerAuthInjected=true;"
-                        // Fetch interceptor with API URL rewriting and auth header injection
-                        + "var origFetch=window.fetch;"
-                        + "window.fetch=function(u,o){"
-                        + "if(!o)o={};"
-                        + "if(!o.headers)o.headers={};"
-                        + "var tkn=window.__FUNDOCAREER_AUTH__&&window.__FUNDOCAREER_AUTH__.accessToken;"
-                        + "var url=(typeof u==='string')?u:(u&&typeof u.url==='string')?u.url:null;"
-                        + "if(url&&url.indexOf('/api/')>=0){"
-                        + "var needRewrite=(url.indexOf('" + BuildConfig.FRONTEND_URL + "/api/')===0||url.indexOf('/api/')===0);"
-                        + "if(needRewrite){url='" + BuildConfig.API_BASE_URL + "'+url.substring(url.indexOf('/api/'));}"
-                        + "if(typeof u==='string'){"
-                        + "if(tkn&&!o.headers['Authorization']&&!o.headers['authorization']){o.headers['Authorization']='Bearer '+tkn;}"
-                        + "if(needRewrite)u=url;"
-                        + "return origFetch.call(window,u,o);"
-                        + "}else{"
-                        + "var h=new Headers(u.headers);"
-                        + "if(tkn&&!h.has('Authorization'))h.set('Authorization','Bearer '+tkn);"
-                        + "return origFetch.call(window,new Request(url,{method:u.method,headers:h,body:u.body,mode:u.mode,credentials:u.credentials,cache:u.cache,redirect:u.redirect,referrer:u.referrer,integrity:u.integrity}),o);"
-                        + "}"
-                        + "}"
-                        + "return origFetch.call(window,u,o);"
-                        + "};"
-                        // XMLHttpRequest interceptor with API URL rewriting
-                        + "var origOpen=XMLHttpRequest.prototype.open;"
-                        + "XMLHttpRequest.prototype.open=function(m,u,a){"
-                        + "this.__xhrUrl=u;"
-                        + "if(typeof u==='string'&&u.indexOf('/api/')>=0){"
-                        + "if(u.indexOf('" + BuildConfig.FRONTEND_URL + "/api/')===0||u.indexOf('/api/')===0){"
-                        + "u='" + BuildConfig.API_BASE_URL + "'+u.substring(u.indexOf('/api/'));"
-                        + "}"
-                        + "}"
-                        + "return origOpen.call(this,m,u,a);"
-                        + "};"
-                        + "var origSend=XMLHttpRequest.prototype.send;"
-                        + "XMLHttpRequest.prototype.send=function(b){"
-                        + "var tkn=window.__FUNDOCAREER_AUTH__&&window.__FUNDOCAREER_AUTH__.accessToken;"
-                        + "if(tkn&&typeof this.__xhrUrl==='string'&&this.__xhrUrl.indexOf('/api/')>=0){"
-                        + "this.setRequestHeader('Authorization','Bearer '+tkn);"
-                        + "}"
-                        + "return origSend.call(this,b);"
-                        + "};"
-                        // Events
-                        + "document.dispatchEvent(new CustomEvent('fundocareer-auth-ready',{detail:window.__FUNDOCAREER_AUTH__}));"
-                        + "window.dispatchEvent(new CustomEvent('fundocareer:auth-updated',{detail:{source:'android-native',isAuthenticated:true,user:" + userJson + "}}));"
-                        + "})();"
-                        + "</script>";
-            }
-
-            private String safeJs(String s) {
-                if (s == null) return "";
-                return s.replace("\\", "\\\\")
-                        .replace("'", "\\'")
-                        .replace("\n", "\\n")
-                        .replace("\r", "\\r");
             }
 
             @Override
@@ -1194,6 +945,7 @@ public class MainActivity extends BridgeActivity {
                     micManager.onPageChanged(view, url);
                 }
                 hideOfflineOverlay();
+                hideLoginOverlay();
                 loadingUrl = url;
                 timeoutHandler.removeCallbacks(timeoutRunnable);
                 timeoutHandler.postDelayed(timeoutRunnable, PAGE_LOAD_TIMEOUT_MS);
@@ -1229,7 +981,7 @@ public class MainActivity extends BridgeActivity {
                         Log.w("FundoCareerApp", "Auth injection error on page start", e);
                     }
                 }
-                Log.i(TAG, "Loading: " + url);
+                if (BuildConfig.DEBUG) Log.i(TAG, "Loading: " + url);
             }
 
             @Override
@@ -1246,17 +998,17 @@ public class MainActivity extends BridgeActivity {
                 isInitialLoad = false;
                 hideLoading();
                 if (view != null) {
-                    injectSafeAreaCss(view);
-                    injectMobileAppStyles(view);
-                    injectMicTracking(view);
-                    injectNavigationBridge(view);
+                    injectPageSetup(view);
                 }
                 syncTabState(url);
+                if (url != null && navPolicy != null && navPolicy.shouldShowLoginGate(url)) {
+                    showLoginOverlay();
+                }
                 if (url != null && (url.contains("/pricing") || url.contains("/plans")
                         || url.contains("/subscription") || url.contains("/billing"))) {
                     PaymentHandler.logPricingView();
                 }
-                if (url != null) {
+                if (url != null && BuildConfig.DEBUG) {
                     Log.i(TAG, "Loaded: " + url);
                 }
             }
@@ -1418,20 +1170,33 @@ public class MainActivity extends BridgeActivity {
             @Override
             public void onPermissionRequest(PermissionRequest request) {
                 try {
+                    String origin = request.getOrigin() != null ? request.getOrigin().toString() : "unknown";
                     String[] resources = request.getResources();
+                    StringBuilder sb = new StringBuilder();
+                    for (String r : resources) sb.append(r).append(",");
+                    Log.i(TAG, "WebView permission request from " + origin + ": [" + sb + "]");
+
                     boolean hasAudio = false;
+                    boolean hasVideo = false;
                     boolean hasOther = false;
                     for (String resource : resources) {
                         if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource)) {
                             hasAudio = true;
+                        } else if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource)) {
+                            hasVideo = true;
                         } else {
                             hasOther = true;
                         }
                     }
-                    // Only handle pure audio capture requests. Deny everything else.
-                    if (hasAudio && !hasOther) {
+
+                    if (hasAudio && hasVideo) {
+                        handleWebViewMicAndCamera(request);
+                    } else if (hasAudio) {
                         handleWebViewMicrophone(request);
+                    } else if (hasVideo) {
+                        handleWebViewCamera(request);
                     } else {
+                        Log.w(TAG, "Unrecognized WebView permission resources, denying: [" + sb + "]");
                         request.deny();
                     }
                 } catch (Exception e) {
@@ -1502,29 +1267,41 @@ public class MainActivity extends BridgeActivity {
                 float d = getResources().getDisplayMetrics().density;
                 offlineOverlay = new FrameLayout(this);
                 offlineOverlay.setBackgroundColor(0xFFFAFAFA);
+                offlineOverlay.setClipToPadding(false);
                 offlineOverlay.setLayoutParams(new FrameLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
                 ));
 
-                FrameLayout center = new FrameLayout(this);
-                FrameLayout.LayoutParams clp = new FrameLayout.LayoutParams(
+                ScrollView scrollView = new ScrollView(this);
+                scrollView.setLayoutParams(new FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                ));
+                scrollView.setClipToPadding(false);
+                scrollView.setFillViewport(true);
+
+                LinearLayout scrollContent = new LinearLayout(this);
+                scrollContent.setOrientation(LinearLayout.VERTICAL);
+                scrollContent.setGravity(Gravity.CENTER);
+                scrollContent.setLayoutParams(new ScrollView.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                ));
+
+                LinearLayout center = new LinearLayout(this);
+                center.setOrientation(LinearLayout.VERTICAL);
+                center.setGravity(Gravity.CENTER_HORIZONTAL);
+                center.setLayoutParams(new LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.WRAP_CONTENT,
                         ViewGroup.LayoutParams.WRAP_CONTENT
-                );
-                clp.gravity = Gravity.CENTER;
-                center.setLayoutParams(clp);
+                ));
 
                 TextView icon = new TextView(this);
                 icon.setText("\u26A0\uFE0F");
                 icon.setTextSize(56);
                 icon.setTextColor(0xFF999999);
-                FrameLayout.LayoutParams ilp = new FrameLayout.LayoutParams(
-                        ViewGroup.LayoutParams.WRAP_CONTENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT
-                );
-                ilp.gravity = Gravity.CENTER_HORIZONTAL;
-                icon.setLayoutParams(ilp);
+                icon.setGravity(Gravity.CENTER_HORIZONTAL);
                 center.addView(icon);
 
                 TextView title = new TextView(this);
@@ -1533,13 +1310,7 @@ public class MainActivity extends BridgeActivity {
                 title.setTextColor(0xFF333333);
                 title.setTypeface(null, Typeface.BOLD);
                 title.setGravity(Gravity.CENTER);
-                FrameLayout.LayoutParams tlp = new FrameLayout.LayoutParams(
-                        ViewGroup.LayoutParams.WRAP_CONTENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT
-                );
-                tlp.gravity = Gravity.CENTER_HORIZONTAL;
-                tlp.topMargin = (int) (80 * d);
-                title.setLayoutParams(tlp);
+                title.setPadding((int)(32 * d), (int)(16 * d), (int)(32 * d), 0);
                 center.addView(title);
 
                 TextView subtitle = new TextView(this);
@@ -1548,13 +1319,8 @@ public class MainActivity extends BridgeActivity {
                 subtitle.setTextColor(0xFF666666);
                 subtitle.setGravity(Gravity.CENTER);
                 subtitle.setLineSpacing(4, 1);
-                FrameLayout.LayoutParams slp = new FrameLayout.LayoutParams(
-                        ViewGroup.LayoutParams.WRAP_CONTENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT
-                );
-                slp.gravity = Gravity.CENTER_HORIZONTAL;
-                slp.topMargin = (int) (120 * d);
-                subtitle.setLayoutParams(slp);
+                subtitle.setPadding((int)(32 * d), (int)(8 * d), (int)(32 * d), (int)(24 * d));
+                subtitle.setMaxWidth((int)(320 * d));
                 center.addView(subtitle);
 
                 Button retryBtn = new Button(this);
@@ -1565,12 +1331,11 @@ public class MainActivity extends BridgeActivity {
                 retryBtn.setTextColor(0xFFFFFFFF);
                 retryBtn.setBackgroundColor(0xFF1A73E8);
                 retryBtn.setPadding((int) (32 * d), (int) (12 * d), (int) (32 * d), (int) (12 * d));
-                FrameLayout.LayoutParams blp = new FrameLayout.LayoutParams(
+                LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.WRAP_CONTENT,
                         ViewGroup.LayoutParams.WRAP_CONTENT
                 );
                 blp.gravity = Gravity.CENTER_HORIZONTAL;
-                blp.topMargin = (int) (180 * d);
                 retryBtn.setLayoutParams(blp);
                 retryBtn.setOnClickListener(v -> {
                     WebView wv = getSafeWebView();
@@ -1587,7 +1352,9 @@ public class MainActivity extends BridgeActivity {
                 });
                 center.addView(retryBtn);
 
-                offlineOverlay.addView(center);
+                scrollContent.addView(center);
+                scrollView.addView(scrollContent);
+                offlineOverlay.addView(scrollView);
                 contentFrame.addView(offlineOverlay);
             }
             hideLoading();
@@ -1652,22 +1419,13 @@ public class MainActivity extends BridgeActivity {
         try {
             WebView wv = getSafeWebView();
             if (wv == null) {
+                Log.w(TAG, "WebView null, denying mic request");
                 request.deny();
-                return;
-            }
-            String currentUrl = wv.getUrl();
-            if (currentUrl == null || (!currentUrl.contains("/mock-interview")
-                    && !currentUrl.contains("/mock"))) {
-                Log.w(TAG, "Mic requested outside mock interview, denying");
-                request.deny();
-                Toast.makeText(this,
-                        "Microphone is only available during mock interviews",
-                        Toast.LENGTH_SHORT).show();
                 return;
             }
 
             if (!PermissionCoordinator.hasMicrophoneHardware(this)) {
-                Log.w(TAG, "No mic hardware available");
+                Log.w(TAG, "No mic hardware available, denying mic request");
                 request.deny();
                 Toast.makeText(this,
                         "No microphone available on this device",
@@ -1676,18 +1434,21 @@ public class MainActivity extends BridgeActivity {
             }
 
             if (PermissionCoordinator.hasMicrophonePermission(this)) {
+                Log.i(TAG, "Mic permission already granted, granting WebView RESOURCE_AUDIO_CAPTURE");
                 request.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});
                 if (micManager != null) micManager.onMicStarted();
                 return;
             }
+
+            Log.i(TAG, "Mic permission not yet granted, requesting runtime RECORD_AUDIO");
             PermissionCoordinator.showExplanationDialog(this,
-                    "Prepare for Your Mock Interview",
-                    "We'll use your microphone so the AI interviewer can hear your responses.\n\n" +
-                            "Your audio is processed in real time and is not recorded or stored without your consent.",
+                    "Microphone Access",
+                    "This feature needs access to your microphone.",
                     () -> requestMicrophonePermission(new PermissionCoordinator.PermissionCallback() {
                         @Override
                         public void onGranted() {
                             try {
+                                Log.i(TAG, "Runtime mic permission granted, granting WebView RESOURCE_AUDIO_CAPTURE");
                                 request.grant(
                                         new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});
                                 if (micManager != null) micManager.onMicStarted();
@@ -1698,6 +1459,7 @@ public class MainActivity extends BridgeActivity {
 
                         @Override
                         public void onDenied(boolean neverAskAgain) {
+                            Log.w(TAG, "Runtime mic permission denied, denying WebView request");
                             try { request.deny(); } catch (Exception ignored) {}
                             if (neverAskAgain) {
                                 PermissionCoordinator.showPermissionDeniedDialog(
@@ -1708,16 +1470,92 @@ public class MainActivity extends BridgeActivity {
                                         null);
                             } else {
                                 Toast.makeText(MainActivity.this,
-                                        "Microphone access is needed for mock interviews",
+                                        "Microphone access is needed for this feature",
                                         Toast.LENGTH_SHORT).show();
                             }
                         }
                     }),
                     () -> {
+                        Log.i(TAG, "User cancelled mic explanation dialog, denying WebView request");
                         try { request.deny(); } catch (Exception ignored) {}
                     });
         } catch (Exception e) {
             Log.e(TAG, "Mic permission flow error", e);
+            try { request.deny(); } catch (Exception ignored) {}
+        }
+    }
+
+    private void handleWebViewCamera(PermissionRequest request) {
+        try {
+            if (PermissionCoordinator.hasCameraPermission(this)) {
+                Log.i(TAG, "Camera permission already granted, granting WebView RESOURCE_VIDEO_CAPTURE");
+                request.grant(new String[]{PermissionRequest.RESOURCE_VIDEO_CAPTURE});
+                return;
+            }
+            Log.i(TAG, "Camera permission not yet granted, requesting runtime CAMERA");
+            PermissionCoordinator.showExplanationDialog(this,
+                    "Camera Access",
+                    "This feature needs access to your camera.",
+                    () -> requestCameraPermission(new PermissionCoordinator.PermissionCallback() {
+                        @Override
+                        public void onGranted() {
+                            try {
+                                Log.i(TAG, "Runtime camera permission granted, granting WebView RESOURCE_VIDEO_CAPTURE");
+                                request.grant(new String[]{PermissionRequest.RESOURCE_VIDEO_CAPTURE});
+                            } catch (Exception e) {
+                                Log.w(TAG, "Grant after camera permission failed", e);
+                            }
+                        }
+
+                        @Override
+                        public void onDenied(boolean neverAskAgain) {
+                            Log.w(TAG, "Runtime camera permission denied, denying WebView request");
+                            try { request.deny(); } catch (Exception ignored) {}
+                            if (neverAskAgain) {
+                                PermissionCoordinator.showPermissionDeniedDialog(
+                                        MainActivity.this, "Camera",
+                                        () -> PermissionCoordinator.openAppSettings(MainActivity.this),
+                                        null);
+                            } else {
+                                Toast.makeText(MainActivity.this,
+                                        "Camera access is needed for this feature",
+                                        Toast.LENGTH_SHORT).show();
+                            }
+                        }
+                    }),
+                    () -> {
+                        Log.i(TAG, "User cancelled camera explanation dialog, denying WebView request");
+                        try { request.deny(); } catch (Exception ignored) {}
+                    });
+        } catch (Exception e) {
+            Log.e(TAG, "Camera permission flow error", e);
+            try { request.deny(); } catch (Exception ignored) {}
+        }
+    }
+
+    private void handleWebViewMicAndCamera(PermissionRequest request) {
+        try {
+            boolean hasMic = PermissionCoordinator.hasMicrophonePermission(this);
+            boolean hasCam = PermissionCoordinator.hasCameraPermission(this);
+
+            if (hasMic && hasCam) {
+                Log.i(TAG, "Both mic and camera already granted, granting combined WebView request");
+                request.grant(new String[]{
+                        PermissionRequest.RESOURCE_AUDIO_CAPTURE,
+                        PermissionRequest.RESOURCE_VIDEO_CAPTURE
+                });
+                if (micManager != null) micManager.onMicStarted();
+                return;
+            }
+
+            Log.i(TAG, "Combined mic+cam requested, requesting runtime permissions: mic=" + hasMic + " cam=" + hasCam);
+            pendingPermissionRequest = request;
+            micAndCameraLauncher.launch(new String[]{
+                    android.Manifest.permission.RECORD_AUDIO,
+                    android.Manifest.permission.CAMERA
+            });
+        } catch (Exception e) {
+            Log.e(TAG, "Combined permission flow error", e);
             try { request.deny(); } catch (Exception ignored) {}
         }
     }
@@ -1747,9 +1585,41 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
+    private void requestCameraPermission(PermissionCoordinator.PermissionCallback callback) {
+        try {
+            if (PermissionCoordinator.hasCameraPermission(this)) {
+                if (callback != null) callback.onGranted();
+                return;
+            }
+            if (PermissionCoordinator.isNeverAskAgain(this,
+                    android.Manifest.permission.CAMERA)) {
+                PermissionCoordinator.showPermissionDeniedDialog(
+                        this, "Camera",
+                        () -> PermissionCoordinator.openAppSettings(this),
+                        () -> {
+                            if (callback != null)
+                                callback.onDenied(true);
+                        });
+                return;
+            }
+            pendingCameraCallback = callback;
+            cameraLauncher.launch(android.Manifest.permission.CAMERA);
+        } catch (Exception e) {
+            Log.e(TAG, "Request camera error", e);
+            if (callback != null) callback.onDenied(false);
+        }
+    }
+
     private boolean onNavItemClicked(int itemId) {
         if (itemId == R.id.nav_more) {
             showMoreSheet();
+            return true;
+        }
+        if (itemId == R.id.nav_jobs) {
+            setActiveNavItem(itemId);
+            saveActiveTab(itemId);
+            Intent intent = new Intent(this, JobsPageActivity.class);
+            startActivity(intent);
             return true;
         }
         setActiveNavItem(itemId);
@@ -1850,6 +1720,7 @@ public class MainActivity extends BridgeActivity {
         navItemViews.put(R.id.nav_more, moreView);
 
         capsule.addView(navRow);
+        this.navCapsule = capsule;
 
         FrameLayout.LayoutParams capsuleLp = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -1858,6 +1729,7 @@ public class MainActivity extends BridgeActivity {
         capsuleLp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
         capsuleLp.setMargins((int)(16 * d), 0, (int)(16 * d), (int)(16 * d));
         root.addView(capsule, capsuleLp);
+        capsule.setVisibility(View.GONE);
 
         ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
             int bottom = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom;
@@ -1869,6 +1741,175 @@ public class MainActivity extends BridgeActivity {
         });
 
         setActiveNavItem(R.id.nav_home);
+    }
+
+    private void showNav() {
+        if (navCapsule != null) {
+            navCapsule.setVisibility(View.VISIBLE);
+            updateWebViewBottomPadding(true);
+            Log.i(TAG, "Bottom nav shown");
+        }
+    }
+
+    private void hideNav() {
+        if (navCapsule != null) {
+            navCapsule.setVisibility(View.GONE);
+            updateWebViewBottomPadding(false);
+            Log.i(TAG, "Bottom nav hidden");
+        }
+    }
+
+    private void updateNavVisibility(boolean visible) {
+        if (visible) {
+            showNav();
+        } else {
+            hideNav();
+        }
+    }
+
+    private void updateWebViewBottomPadding(boolean navVisible) {
+        WebView wv = getSafeWebView();
+        if (wv == null) return;
+        String padding = navVisible ? "80px" : "0px";
+        String js = "(function(){try{" +
+            "var s=document.getElementById('__fc_nav_pad')||function(){" +
+            "var e=document.createElement('style');e.id='__fc_nav_pad';" +
+            "if(document.head)document.head.appendChild(e);return e;}();" +
+            "s.textContent='body,main,[role=main],#app,.app{padding-bottom:" + padding + "!important}';" +
+            "}catch(e){}})()";
+        wv.evaluateJavascript(js, null);
+    }
+
+    private void createLoginOverlay() {
+        loginOverlay = new FrameLayout(this);
+        loginOverlay.setBackgroundColor(0x99000000);
+        loginOverlay.setVisibility(View.GONE);
+        loginOverlay.setClipToPadding(false);
+
+        float d = getResources().getDisplayMetrics().density;
+        int horizontalMargin = (int)(24 * d);
+
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.setLayoutParams(new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+        scrollView.setClipToPadding(false);
+        scrollView.setFillViewport(true);
+
+        LinearLayout scrollContent = new LinearLayout(this);
+        scrollContent.setOrientation(LinearLayout.VERTICAL);
+        scrollContent.setGravity(Gravity.CENTER);
+        scrollContent.setLayoutParams(new ScrollView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        MaterialCardView card = new MaterialCardView(this);
+        card.setRadius(16 * d);
+        card.setCardElevation(8 * d);
+        card.setCardBackgroundColor(0xFFFFFFFF);
+        card.setContentPadding((int)(24 * d), (int)(32 * d), (int)(24 * d), (int)(24 * d));
+
+        LinearLayout.LayoutParams cardLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        cardLp.setMargins(horizontalMargin, (int)(16 * d), horizontalMargin, (int)(16 * d));
+        card.setLayoutParams(cardLp);
+
+        LinearLayout cardContent = new LinearLayout(this);
+        cardContent.setOrientation(LinearLayout.VERTICAL);
+        cardContent.setGravity(Gravity.CENTER_HORIZONTAL);
+
+        TextView title = new TextView(this);
+        title.setText("Login to continue");
+        title.setTextSize(22);
+        title.setTypeface(null, Typeface.BOLD);
+        title.setTextColor(0xFF1A1A1A);
+        title.setGravity(Gravity.CENTER);
+        cardContent.addView(title);
+
+        TextView subtitle = new TextView(this);
+        subtitle.setText("Create your profile and access all FundoCareer features.");
+        subtitle.setTextSize(14);
+        subtitle.setTextColor(0xFF666666);
+        subtitle.setGravity(Gravity.CENTER);
+        subtitle.setLineSpacing(0, 1.3f);
+        subtitle.setPadding(0, (int)(12 * d), 0, (int)(24 * d));
+        cardContent.addView(subtitle);
+
+        Button loginBtn = new Button(this);
+        loginBtn.setText("Login / Sign up");
+        loginBtn.setTextSize(16);
+        loginBtn.setAllCaps(false);
+        loginBtn.setTypeface(null, Typeface.BOLD);
+        loginBtn.setTextColor(0xFFFFFFFF);
+        loginBtn.setPadding(0, (int)(14 * d), 0, (int)(14 * d));
+        GradientDrawable btnBg = new GradientDrawable();
+        btnBg.setColor(0xFF1A73E8);
+        btnBg.setCornerRadius(8 * d);
+        loginBtn.setBackground(btnBg);
+        loginBtn.setOnClickListener(v -> requestNativeGoogleLogin("login-gate"));
+        LinearLayout.LayoutParams loginBtnLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        loginBtn.setLayoutParams(loginBtnLp);
+        cardContent.addView(loginBtn);
+
+        Button homeBtn = new Button(this);
+        homeBtn.setText("Back to Home");
+        homeBtn.setTextSize(16);
+        homeBtn.setAllCaps(false);
+        homeBtn.setTypeface(null, Typeface.NORMAL);
+        homeBtn.setTextColor(0xFF1A73E8);
+        homeBtn.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+        homeBtn.setPadding(0, (int)(12 * d), 0, (int)(12 * d));
+        homeBtn.setOnClickListener(v -> {
+            hideLoginOverlay();
+            WebView wv = getSafeWebView();
+            if (wv != null) {
+                wv.loadUrl(AppConfig.getDefaultUrl());
+            }
+        });
+        LinearLayout.LayoutParams homeBtnLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        homeBtn.setLayoutParams(homeBtnLp);
+        cardContent.addView(homeBtn);
+
+        card.addView(cardContent);
+        scrollContent.addView(card);
+        scrollView.addView(scrollContent);
+        loginOverlay.addView(scrollView);
+
+        contentFrame.addView(loginOverlay, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
+        ViewCompat.setOnApplyWindowInsetsListener(loginOverlay, (v, insets) -> {
+            int top = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
+            int bottom = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom;
+            v.setPadding(0, top, 0, bottom);
+            return WindowInsetsCompat.CONSUMED;
+        });
+    }
+
+    private void showLoginOverlay() {
+        if (loginOverlay != null && loginOverlay.getVisibility() != View.VISIBLE) {
+            loginOverlay.setVisibility(View.VISIBLE);
+            loginOverlay.bringToFront();
+            Log.i(TAG, "Login overlay shown");
+        }
+    }
+
+    private void hideLoginOverlay() {
+        if (loginOverlay != null) {
+            loginOverlay.setVisibility(View.GONE);
+        }
     }
 
     private View createNavItemView(NavItemData item, float d) {
@@ -2051,7 +2092,9 @@ public class MainActivity extends BridgeActivity {
             row.setClickable(true);
             row.setFocusable(true);
             row.setPadding(0, (int)(14 * d), 0, (int)(14 * d));
-            row.setBackground(null);
+            TypedValue outValue = new TypedValue();
+            getTheme().resolveAttribute(android.R.attr.selectableItemBackground, outValue, true);
+            row.setBackgroundResource(outValue.resourceId);
 
             if (mi.iconRes > 0) {
                 ImageView iv = new ImageView(this);
@@ -2087,8 +2130,12 @@ public class MainActivity extends BridgeActivity {
             final String fUrl = mi.url;
             row.setOnClickListener(v -> {
                 dialog.dismiss();
+                if (fUrl != null && fUrl.startsWith("native:")) {
+                    String screen = fUrl.substring(7);
+                    return;
+                }
                 WebView wv = getSafeWebView();
-                if (wv != null) {
+                if (wv != null && wv.getUrl() != null && !wv.getUrl().equals("about:blank")) {
                     String fPath = Uri.parse(fUrl).getPath();
                     if (fPath == null || fPath.isEmpty()) fPath = "/";
                     String js = "window.__fundocareerNavigate && window.__fundocareerNavigate(" + org.json.JSONObject.quote(fPath) + ")";
@@ -2098,6 +2145,10 @@ public class MainActivity extends BridgeActivity {
                             wv.loadUrl(fUrl);
                         }
                     });
+                } else {
+                    Log.w(TAG, "WebView not available for More item, opening in browser: " + fUrl);
+                    Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(fUrl));
+                    startActivity(browserIntent);
                 }
             });
 
@@ -2210,24 +2261,35 @@ public class MainActivity extends BridgeActivity {
             loadingOverlay.removeAllViews();
             float d = getResources().getDisplayMetrics().density;
 
-            FrameLayout errorRoot = new FrameLayout(MainActivity.this);
-            errorRoot.setLayoutParams(new FrameLayout.LayoutParams(
+            ScrollView scrollView = new ScrollView(MainActivity.this);
+            scrollView.setLayoutParams(new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
+                ));
+            scrollView.setClipToPadding(false);
+            scrollView.setFillViewport(true);
+
+            LinearLayout scrollContent = new LinearLayout(MainActivity.this);
+            scrollContent.setOrientation(LinearLayout.VERTICAL);
+            scrollContent.setGravity(Gravity.CENTER);
+            scrollContent.setLayoutParams(new ScrollView.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
             ));
 
-            FrameLayout center = new FrameLayout(MainActivity.this);
-            FrameLayout.LayoutParams clp = new FrameLayout.LayoutParams(
+            LinearLayout center = new LinearLayout(MainActivity.this);
+            center.setOrientation(LinearLayout.VERTICAL);
+            center.setGravity(Gravity.CENTER_HORIZONTAL);
+            center.setLayoutParams(new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT
-            );
-            clp.gravity = Gravity.CENTER;
-            center.setLayoutParams(clp);
+            ));
 
             TextView icon = new TextView(MainActivity.this);
             icon.setText("\u26A0\uFE0F");
             icon.setTextSize(48);
-            FrameLayout.LayoutParams ilp = new FrameLayout.LayoutParams(
+            icon.setGravity(Gravity.CENTER_HORIZONTAL);
+            LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT
             );
@@ -2240,14 +2302,12 @@ public class MainActivity extends BridgeActivity {
             errorText.setTextSize(16);
             errorText.setTextColor(0xFF333333);
             errorText.setGravity(Gravity.CENTER);
-            errorText.setPadding((int)(32 * d), 0, (int)(32 * d), 0);
-            FrameLayout.LayoutParams elp = new FrameLayout.LayoutParams(
+            errorText.setPadding((int)(32 * d), (int)(16 * d), (int)(32 * d), (int)(16 * d));
+            errorText.setMaxWidth((int)(320 * d));
+            errorText.setLayoutParams(new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT
-            );
-            elp.gravity = Gravity.CENTER_HORIZONTAL;
-            elp.topMargin = (int)(72 * d);
-            errorText.setLayoutParams(elp);
+            ));
             center.addView(errorText);
 
             Button retryBtn = new Button(MainActivity.this);
@@ -2258,12 +2318,11 @@ public class MainActivity extends BridgeActivity {
             retryBtn.setTextColor(0xFFFFFFFF);
             retryBtn.setBackgroundColor(0xFF1A73E8);
             retryBtn.setPadding((int)(32 * d), (int)(12 * d), (int)(32 * d), (int)(12 * d));
-            FrameLayout.LayoutParams blp = new FrameLayout.LayoutParams(
+            LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT
             );
             blp.gravity = Gravity.CENTER_HORIZONTAL;
-            blp.topMargin = (int)(120 * d);
             retryBtn.setLayoutParams(blp);
             retryBtn.setOnClickListener(v -> {
                 loadingOverlay.removeAllViews();
@@ -2273,56 +2332,45 @@ public class MainActivity extends BridgeActivity {
             });
             center.addView(retryBtn);
 
-            errorRoot.addView(center);
-            loadingOverlay.addView(errorRoot);
+            scrollContent.addView(center);
+            scrollView.addView(scrollContent);
+            loadingOverlay.addView(scrollView);
             loadingOverlay.setVisibility(View.VISIBLE);
         });
     }
 
-    private void injectSafeAreaCss(WebView view) {
-        String js = "(function(){" +
-                "if(document.getElementById('__fundocareer_safe'))return;" +
-                "var s=document.createElement('style');" +
-                "s.id='__fundocareer_safe';" +
-                "s.innerHTML=':root{--sat:env(safe-area-inset-top);" +
-                "--sab:env(safe-area-inset-bottom);" +
-                "--sal:env(safe-area-inset-left);" +
-                "--sar:env(safe-area-inset-right)}';" +
-                "if(document.head){document.head.appendChild(s);}" +
-                "})()";
-        view.evaluateJavascript(js, null);
-    }
-
-    private void injectMicTracking(WebView view) {
-        String js = "(function(){" +
-                "if(window.__fundocareer_mic)return;" +
-                "window.__fundocareer_mic=true;" +
-                "var origGUM=navigator.mediaDevices&&navigator.mediaDevices.getUserMedia;" +
-                "if(!origGUM)return;" +
-                "navigator.mediaDevices.getUserMedia=function(c){" +
-                "return origGUM.call(navigator.mediaDevices,c).then(function(s){" +
-                "window.__micStream=s;" +
-                "try{window.MicrophoneBridge&&window.MicrophoneBridge.onMicStarted&&window.MicrophoneBridge.onMicStarted()}catch(e){}" +
-                "s.getTracks().forEach(function(t){" +
-                "t.addEventListener('ended',function(){" +
-                "window.__micStream=null;" +
-                "try{window.MicrophoneBridge&&window.MicrophoneBridge.onMicStopped&&window.MicrophoneBridge.onMicStopped()}catch(e){}" +
-                "})" +
-                "});" +
-                "return s" +
-                "})" +
-                "}" +
-                "})()";
-        view.evaluateJavascript(js, null);
-    }
-
-    private void injectNavigationBridge(WebView view) {
-        String js = "(function(){" +
-                "if(window.__fundocareerNavigate)return;" +
-                "window.__fundocareerNavigate=function(path){" +
-                "if(window.__FUNDOCAREER_ROUTER__&&typeof window.__FUNDOCAREER_ROUTER__.navigate==='function'){" +
-                "window.__FUNDOCAREER_ROUTER__.navigate(path);return true}" +
-                "return false}})()";
+    private void injectPageSetup(WebView view) {
+        String js = "(function(){"
+                + "if(window.__fundocareerPageSetupDone)return;"
+                + "window.__fundocareerPageSetupDone=true;"
+                // Safe area CSS
+                + "if(!document.getElementById('__fundocareer_safe')){"
+                + "var s=document.createElement('style');"
+                + "s.id='__fundocareer_safe';"
+                + "s.innerHTML=':root{--sat:env(safe-area-inset-top);--sab:env(safe-area-inset-bottom);--sal:env(safe-area-inset-left);--sar:env(safe-area-inset-right)}';"
+                + "if(document.head)document.head.appendChild(s);"
+                + "}"
+                // Mic tracking
+                + "if(!window.__fundocareer_mic){"
+                + "window.__fundocareer_mic=true;"
+                + "var origGUM=navigator.mediaDevices&&navigator.mediaDevices.getUserMedia;"
+                + "if(origGUM){"
+                + "navigator.mediaDevices.getUserMedia=function(c){"
+                + "return origGUM.call(navigator.mediaDevices,c).then(function(s){"
+                + "window.__micStream=s;"
+                + "try{window.MicrophoneBridge&&window.MicrophoneBridge.onMicStarted&&window.MicrophoneBridge.onMicStarted()}catch(e){}"
+                + "s.getTracks().forEach(function(t){"
+                + "t.addEventListener('ended',function(){"
+                + "window.__micStream=null;"
+                + "try{window.MicrophoneBridge&&window.MicrophoneBridge.onMicStopped&&window.MicrophoneBridge.onMicStopped()}catch(e){}"
+                + "})});return s})}}}"
+                // Navigation bridge
+                + "if(!window.__fundocareerNavigate){"
+                + "window.__fundocareerNavigate=function(path){"
+                + "if(window.__FUNDOCAREER_ROUTER__&&typeof window.__FUNDOCAREER_ROUTER__.navigate==='function'){"
+                + "window.__FUNDOCAREER_ROUTER__.navigate(path);return true}"
+                + "return false}}"
+                + "})()";
         view.evaluateJavascript(js, null);
     }
 
@@ -2332,7 +2380,7 @@ public class MainActivity extends BridgeActivity {
                 "document.documentElement.dataset.fundocareerApp='android';" +
                 "try{localStorage.setItem('FUNDOCareer_APP_MODE','android')}catch(e){}" +
                 "window.__fundocareerApp=true;" +
-                "window.electron=true;" +
+                "window.fundocareerAndroidApp='1.0';" +
                 "var a=document.createElement('style');" +
                 "a.id='__fc_fixes';" +
                 "a.textContent=[" +
@@ -2482,50 +2530,37 @@ public class MainActivity extends BridgeActivity {
             return;
         }
 
-        // Phase 9: On startup, if we have a stored session, try token refresh
+        // Load home page immediately — don't block on token refresh
+        setActiveNavItem(R.id.nav_home);
+        webView.loadUrl(AppConfig.getDefaultUrl());
+
+        // Defer token refresh to background — page already loading
         if (authManager != null && authManager.getTokenStore().hasRefreshToken()
                 && (authManager.getTokenStore().isTokenExpired() || !authManager.isLoggedIn())) {
-            Log.i(TAG, "Session present but expired, attempting refresh on startup");
-            attemptStartupRefresh(webView, savedTabId, url);
-            return;
-        }
-
-        if (authManager != null && authManager.isLoggedIn()) {
-            // Phase 5: Re-inject auth into WebView on startup
+            Log.i(TAG, "Session expired, deferring token refresh to background");
+            attemptStartupRefresh();
+        } else if (navPolicy != null && navPolicy.isUserLoggedIn()) {
             authManager.injectAuthState(webView);
-            setActiveNavItem(savedTabId);
-            webView.loadUrl(url);
-        } else {
-            setActiveNavItem(R.id.nav_home);
-            webView.loadUrl(AppConfig.getDefaultUrl());
         }
     }
 
-    private void attemptStartupRefresh(WebView webView, int savedTabId, String url) {
+    private void attemptStartupRefresh() {
         authManager.refreshAccessToken(new AuthManager.AuthCallback() {
             @Override
             public void onSuccess(JSONObject authData) {
-                Log.i(TAG, "Startup token refresh succeeded, restoring session");
+                Log.i(TAG, "Startup token refresh succeeded");
                 runOnUiThread(() -> {
                     WebView wv = getSafeWebView();
                     if (wv != null) {
                         authManager.setAuthCookies();
                         authManager.injectAuthState(wv);
                     }
-                    setActiveNavItem(savedTabId);
-                    WebView wv2 = getSafeWebView();
-                    if (wv2 != null) wv2.loadUrl(url);
                 });
             }
 
             @Override
             public void onError(String error) {
-                Log.i(TAG, "Startup token refresh failed, starting fresh: " + error);
-                runOnUiThread(() -> {
-                    setActiveNavItem(R.id.nav_home);
-                    WebView wv = getSafeWebView();
-                    if (wv != null) wv.loadUrl(AppConfig.getDefaultUrl());
-                });
+                Log.i(TAG, "Startup token refresh failed: " + error);
             }
         });
     }

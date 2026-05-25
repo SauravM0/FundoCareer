@@ -6,6 +6,7 @@ import android.os.Looper;
 import android.util.Log;
 import android.webkit.CookieManager;
 import android.webkit.WebView;
+import com.fundocareer.app.core.jobalerts.JobAlertLifecycle;
 
 import org.json.JSONObject;
 
@@ -226,6 +227,9 @@ public class AuthManager {
                 Log.w(TAG, "Backend logout call failed", e);
             } finally {
                 mainHandler.post(() -> {
+                    String pausedEmail = tokenStore.getUserEmail();
+                    JobAlertLifecycle.onLogout(context, pausedEmail);
+
                     try {
                         clearAuthCookies();
                     } catch (Exception e) {
