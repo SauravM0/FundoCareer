@@ -28,19 +28,48 @@ if (missingVars.length > 0) {
   process.exit(1);
 }
 
+// ======================
+// EMAIL CONFIGURATION VALIDATION
+// ======================
+const emailUser = process.env.SERVER_EMAIL_USERNAME;
+const emailPass = process.env.SERVER_EMAIL_PASSWORD;
+
+console.log('\n[Startup] Email configuration check:');
+if (!emailUser) {
+  console.warn('  ⚠ SERVER_EMAIL_USERNAME not set — email sending DISABLED');
+  console.warn('  Set both SERVER_EMAIL_USERNAME and SERVER_EMAIL_PASSWORD in .env to enable email.');
+} else if (!emailPass) {
+  console.warn('  ⚠ SERVER_EMAIL_USERNAME is set but SERVER_EMAIL_PASSWORD is missing — email sending DISABLED');
+} else if (emailUser.includes('@gmail.com') || emailUser.includes('@googlemail.com')) {
+  const looksLikeAppPassword = /^[a-z]{16}$/.test(emailPass);
+  if (!looksLikeAppPassword) {
+    console.warn('  ⚠ Gmail detected but password does not look like a Gmail App Password.');
+    console.warn('  Gmail App Passwords are exactly 16 lowercase letters with no spaces.');
+    console.warn('  Your regular Gmail password will NOT work with SMTP.');
+    console.warn('  Generate one at: https://myaccount.google.com/apppasswords');
+    console.warn('  1. Enable 2FA at https://myaccount.google.com/security');
+    console.warn('  2. Go to https://myaccount.google.com/apppasswords');
+    console.warn('  3. Select "Mail" and "Other (Custom name)" → generate');
+  } else {
+    console.log('  ✓ Gmail App Password detected (format valid)');
+  }
+  console.log(`  User: ${emailUser.replace(/(.{2}).*@/, '$1***@')}`);
+} else {
+  console.log('  ✓ SERVER_EMAIL_USERNAME is set (non-Gmail)');
+}
+console.log('');
+
 const app = express();
 const ALLOWED_ORIGINS = [
   'https://www.fundocareer.com',
   'https://fundocareer.com',
 ];
 if (process.env.NODE_ENV !== 'production') {
-  ALLOWED_ORIGINS.push(
-    'http://localhost:3000',
-    'http://localhost:5173',
-    'http://localhost:5000',
-    'http://10.0.2.2:5173',
-    'http://10.0.2.2:5000',
-  );
+  // Development: allow local dev servers if specified
+  if (process.env.DEV_ORIGINS) {
+    const devOrigins = process.env.DEV_ORIGINS.split(',').map(o => o.trim());
+    ALLOWED_ORIGINS.push(...devOrigins);
+  }
 }
 
 app.use(
@@ -75,11 +104,52 @@ const asyncHandler = (fn) => (req, res, next) => {
   Promise.resolve(fn(req, res, next)).catch(next);
 };
 
+function maskLogEmail(email) {
+  if (!email || typeof email !== 'string' || !email.includes('@')) return null;
+  const [local, domain] = email.split('@');
+  return `${local.slice(0, 2)}***@${domain}`;
+}
+
+function schedulerDiagnosticsRequestLogger(req, res, next) {
+  const trackedPrefixes = ['/api/mobile/auth', '/api/notifications', '/api/scheduler'];
+  if (!trackedPrefixes.some(prefix => req.originalUrl.startsWith(prefix))) return next();
+
+  const startedAt = Date.now();
+  const requestId = Math.random().toString(16).slice(2, 10);
+  const endpoint = req.originalUrl.split('?')[0];
+  const userEmail = req.user?.email || req.body?.to || req.body?.email || null;
+  console.log(JSON.stringify({
+    event: 'api_request_started',
+    requestId,
+    endpoint,
+    method: req.method,
+    userEmail: maskLogEmail(userEmail),
+    hasAuthHeader: Boolean(req.headers.authorization),
+    timestamp: new Date().toISOString(),
+  }));
+
+  res.on('finish', () => {
+    console.log(JSON.stringify({
+      event: 'api_request_finished',
+      requestId,
+      endpoint,
+      method: req.method,
+      httpStatus: res.statusCode,
+      durationMs: Date.now() - startedAt,
+      timestamp: new Date().toISOString(),
+    }));
+  });
+
+  next();
+}
+
 // Health checks
 app.get("/api/health", (req, res) => {
   res.json({
+    success: true,
     ok: true,
     status: "healthy",
+    errorCode: null,
     module: "fundocareer-backend",
     timestamp: new Date().toISOString()
   });
@@ -127,6 +197,7 @@ app.get("/", (req, res) => {
 });
 
 // Feature routes
+app.use(schedulerDiagnosticsRequestLogger);
 console.log('[API] Mounting auth routes at /api/auth');
 app.use("/api/auth", authRoutes);
 console.log('[API] Mounting mobile auth routes at /api/mobile/auth');

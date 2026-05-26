@@ -24,7 +24,7 @@ object JobAlertReliabilityEngine {
     fun isSetupSeen(context: Context): Boolean = prefs(context).getBoolean(KEY_SETUP_SEEN, false)
 
     fun markSetupSeen(context: Context) {
-        prefs(context).edit().putBoolean(KEY_SETUP_SEEN, true).apply()
+        prefs(context).edit().putBoolean(KEY_SETUP_SEEN, true).commit()
     }
 
     fun isLimitedReliabilityAcknowledged(context: Context): Boolean {
@@ -32,7 +32,7 @@ object JobAlertReliabilityEngine {
     }
 
     fun acknowledgeLimitedReliability(context: Context) {
-        prefs(context).edit().putBoolean(KEY_ACKNOWLEDGED_LIMITED, true).apply()
+        prefs(context).edit().putBoolean(KEY_ACKNOWLEDGED_LIMITED, true).commit()
     }
 
     fun isAutostartConfirmed(context: Context): Boolean {
@@ -40,7 +40,7 @@ object JobAlertReliabilityEngine {
     }
 
     fun confirmAutostart(context: Context) {
-        prefs(context).edit().putBoolean(KEY_CONFIRMED_AUTOSTART, true).apply()
+        prefs(context).edit().putBoolean(KEY_CONFIRMED_AUTOSTART, true).commit()
     }
 
     fun isFileUploadConfirmed(context: Context): Boolean {
@@ -48,7 +48,7 @@ object JobAlertReliabilityEngine {
     }
 
     fun confirmFileUpload(context: Context) {
-        prefs(context).edit().putBoolean(KEY_CONFIRMED_FILE_UPLOAD, true).apply()
+        prefs(context).edit().putBoolean(KEY_CONFIRMED_FILE_UPLOAD, true).commit()
     }
 
     fun getLastChecklistViewedAt(context: Context): Long {
@@ -77,9 +77,12 @@ object JobAlertReliabilityEngine {
         items.add(buildFileUploadItem(context))
         items.add(buildBackgroundDataItem(context))
         items.add(buildAutostartItem(context))
-        items.add(buildActiveSchedulerItem(deviceState))
 
         val overall = computeOverall(items)
+
+        Log.i(TAG, "getReliabilityStatus: items=${
+            items.joinToString { "${it.type.name}=${it.status.name}" }
+        }, overall=$overall")
 
         return JobAlertReliabilityStatus(
             overall = overall,
@@ -101,16 +104,7 @@ object JobAlertReliabilityEngine {
                 || item.status == ReliabilityItemStatus.NotApplicable
                 || item.status == ReliabilityItemStatus.UserConfirmed
         }
-        val schedulerActive = items.any { item ->
-            item.type == ReliabilityItemType.ActiveScheduler
-                && item.status == ReliabilityItemStatus.Ready
-        }
-
-        return when {
-            allReady -> OverallReliability.OPTIMIZED
-            schedulerActive -> OverallReliability.LIMITED
-            else -> OverallReliability.NEEDS_SETUP
-        }
+        return if (allReady) OverallReliability.OPTIMIZED else OverallReliability.LIMITED
     }
 
     private fun buildNotificationItem(context: Context): ReliabilityChecklistItem {
@@ -125,12 +119,17 @@ object JobAlertReliabilityEngine {
     }
 
     private fun buildBatteryOptimizationItem(context: Context): ReliabilityChecklistItem {
-        val ignoringOpt = PermissionCoordinator.isIgnoringBatteryOptimizations(context)
+        val ignoringOpt = try {
+            PermissionCoordinator.isIgnoringBatteryOptimizations(context)
+        } catch (e: Exception) {
+            Log.w(TAG, "battery optimization check failed, defaulting to Ready", e)
+            true
+        }
         return ReliabilityChecklistItem(
             type = ReliabilityItemType.BatteryOptimization,
             status = if (ignoringOpt) ReliabilityItemStatus.Ready else ReliabilityItemStatus.NotReady,
             label = "Battery optimization",
-            description = "Prevents the system from stopping background job searches.",
+            description = "Helps the system run background job searches reliably.",
             actionLabel = if (ignoringOpt) null else "Disable battery optimization"
         )
     }
@@ -146,7 +145,7 @@ object JobAlertReliabilityEngine {
                 else -> ReliabilityItemStatus.NotReady
             },
             label = "Microphone access",
-            description = if (hasHardware) "Required for recording audio responses during job applications." else "No microphone detected on this device.",
+            description = if (hasHardware) "Allows recording audio responses during job applications." else "No microphone detected on this device.",
             actionLabel = if (enabled || !hasHardware) null else "Grant permission"
         )
     }
@@ -157,7 +156,7 @@ object JobAlertReliabilityEngine {
             type = ReliabilityItemType.CameraPermission,
             status = if (enabled) ReliabilityItemStatus.Ready else ReliabilityItemStatus.NotReady,
             label = "Camera access",
-            description = "Required for taking photos or recording video during job applications.",
+            description = "Allows taking photos or recording video during job applications.",
             actionLabel = if (enabled) null else "Grant permission"
         )
     }
@@ -179,7 +178,7 @@ object JobAlertReliabilityEngine {
             type = ReliabilityItemType.BackgroundData,
             status = if (hasNetwork) ReliabilityItemStatus.Ready else ReliabilityItemStatus.NotReady,
             label = "Internet & background data",
-            description = "Job searches require an active internet connection. Ensure background data is not restricted for this app.",
+            description = "Job searches use the internet. Ensure background data is allowed for this app.",
             actionLabel = null
         )
     }
@@ -190,23 +189,8 @@ object JobAlertReliabilityEngine {
             type = ReliabilityItemType.AutostartOem,
             status = if (confirmed) ReliabilityItemStatus.UserConfirmed else ReliabilityItemStatus.NotReady,
             label = "Autostart permission",
-            description = "Required on some devices (Xiaomi, Huawei, Oppo, etc.) to keep the scheduler alive after reboots.",
+            description = "Helps the scheduler survive device reboots on some devices.",
             actionLabel = if (confirmed) null else "Confirm autostart configured"
-        )
-    }
-
-    private fun buildActiveSchedulerItem(deviceState: DeviceSchedulerStateEntity?): ReliabilityChecklistItem {
-        val schedulerActive = deviceState != null && deviceState.schedulerEnabled
-        return ReliabilityChecklistItem(
-            type = ReliabilityItemType.ActiveScheduler,
-            status = if (schedulerActive) ReliabilityItemStatus.Ready else ReliabilityItemStatus.NotReady,
-            label = "Active job alert scheduler",
-            description = if (schedulerActive) {
-                "Job alerts are scheduled and running."
-            } else {
-                "No active job alert scheduler found. Start one on the Job Search page."
-            },
-            actionLabel = if (schedulerActive) null else "Set up scheduler"
         )
     }
 

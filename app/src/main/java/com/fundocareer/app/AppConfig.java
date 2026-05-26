@@ -42,7 +42,12 @@ public final class AppConfig {
     public static void logConfig() {
         Log.i(TAG, "Build: " + (isDebug() ? "DEBUG" : "RELEASE"));
         Log.i(TAG, "Env: " + BuildConfig.ENV_NAME);
-        Log.i(TAG, "WebApp URL: " + getWebAppBaseUrl());
-        Log.i(TAG, "API URL: " + getApiBaseUrl());
+        Log.i(TAG, "=== ROUTING CONFIGURATION ===");
+        Log.i(TAG, "[WebView] Production Website URL: " + getWebAppBaseUrl());
+        String webViewApiRouting = (isDebug() && !BuildConfig.FRONTEND_URL.equals(BuildConfig.API_BASE_URL)) ? "LOCAL (rewritten via JS interceptors)" : "PRODUCTION (direct)";
+        Log.i(TAG, "[WebView] API calls go to: " + webViewApiRouting);
+        Log.i(TAG, "[Native Scheduler] Backend API URL: " + getApiBaseUrl());
+        Log.i(TAG, "[Native Scheduler] API calls go to: " + (BuildConfig.FRONTEND_URL.equals(BuildConfig.API_BASE_URL) ? "PRODUCTION" : "LOCAL BACKEND"));
+        Log.i(TAG, "==============================");
     }
 }

@@ -59,6 +59,24 @@ function setAuth(req) {
     .set('Content-Type', 'application/json');
 }
 
+async function resetSchedulerDevices() {
+  await prisma.schedulerLock.deleteMany({ where: { userEmail: TEST_USER.email } });
+  await prisma.schedulerDeviceState.deleteMany({ where: { userEmail: TEST_USER.email } });
+}
+
+async function activateDevice(device, overrides = {}) {
+  return setAuth(authReq()
+    .post('/api/scheduler/active-device/activate'))
+    .send({
+      deviceId: device.deviceId,
+      deviceName: overrides.deviceName || device.deviceName || device.deviceId,
+      devicePlatform: device.deviceType,
+      schedulerPreferenceId: overrides.schedulerPreferenceId || PREF_SET,
+      intervalMinutes: overrides.intervalMinutes,
+      takeover: overrides.takeover,
+    });
+}
+
 // ================================================================
 // LOCK TESTS
 // ================================================================
@@ -66,6 +84,9 @@ function setAuth(req) {
 describe('Lock Acquisition', () => {
 
   test('Device A acquires lock successfully', async () => {
+    await resetSchedulerDevices();
+    await activateDevice(DEVICE_A);
+
     const res = await setAuth(authReq()
       .post('/api/scheduler/acquire-lock'))
       .send({ preferenceSetId: PREF_SET, ...DEVICE_A });
@@ -78,6 +99,12 @@ describe('Lock Acquisition', () => {
   });
 
   test('Device B denied lock while Device A holds it', async () => {
+    await resetSchedulerDevices();
+    await activateDevice(DEVICE_A);
+    await setAuth(authReq()
+      .post('/api/scheduler/acquire-lock'))
+      .send({ preferenceSetId: PREF_SET, ...DEVICE_A });
+
     const res = await setAuth(authReq()
       .post('/api/scheduler/acquire-lock'))
       .send({ preferenceSetId: PREF_SET, ...DEVICE_B });
@@ -86,9 +113,16 @@ describe('Lock Acquisition', () => {
     expect(res.body.success).toBe(true);
     expect(res.body.data.granted).toBe(false);
     expect(res.body.data.heldBy).toBe(DEVICE_A.deviceId);
+    expect(res.body.data.reason).toBe('device_not_active');
   });
 
   test('Device A releases lock successfully', async () => {
+    await resetSchedulerDevices();
+    await activateDevice(DEVICE_A);
+    await setAuth(authReq()
+      .post('/api/scheduler/acquire-lock'))
+      .send({ preferenceSetId: PREF_SET, ...DEVICE_A });
+
     const res = await setAuth(authReq()
       .post('/api/scheduler/release-lock'))
       .send({ preferenceSetId: PREF_SET, deviceId: DEVICE_A.deviceId });
@@ -99,6 +133,8 @@ describe('Lock Acquisition', () => {
   });
 
   test('Device B cannot release Device A lock', async () => {
+    await resetSchedulerDevices();
+    await activateDevice(DEVICE_A);
     await setAuth(authReq()
       .post('/api/scheduler/acquire-lock'))
       .send({ preferenceSetId: PREF_SET, ...DEVICE_A });
@@ -116,7 +152,9 @@ describe('Lock Acquisition', () => {
       .send({ preferenceSetId: PREF_SET, deviceId: DEVICE_A.deviceId });
   });
 
-  test('Device B acquires after Device A releases', async () => {
+  test('Device B acquires only after explicit takeover', async () => {
+    await resetSchedulerDevices();
+    await activateDevice(DEVICE_A);
     await setAuth(authReq()
       .post('/api/scheduler/acquire-lock'))
       .send({ preferenceSetId: PREF_SET, ...DEVICE_A });
@@ -124,6 +162,8 @@ describe('Lock Acquisition', () => {
     await setAuth(authReq()
       .post('/api/scheduler/release-lock'))
       .send({ preferenceSetId: PREF_SET, deviceId: DEVICE_A.deviceId });
+
+    await activateDevice(DEVICE_B, { takeover: true });
 
     const res = await setAuth(authReq()
       .post('/api/scheduler/acquire-lock'))
@@ -137,6 +177,8 @@ describe('Lock Acquisition', () => {
 describe('Lock Expiration', () => {
 
   test('Lock is denied with TTL and later re-acquirable', async () => {
+    await resetSchedulerDevices();
+    await activateDevice(DEVICE_A);
     const prefExpire = 'pref-expire-test';
     await setAuth(authReq()
       .post('/api/scheduler/acquire-lock'))
@@ -402,6 +444,7 @@ describe('Notification Email Endpoint', () => {
 describe('Active Device Management', () => {
 
   test('GET active-device returns null when no device is active', async () => {
+    await resetSchedulerDevices();
     const res = await setAuth(authReq()
       .get(`/api/scheduler/active-device?deviceId=${DEVICE_A.deviceId}`));
 
@@ -447,7 +490,10 @@ describe('Active Device Management', () => {
     expect(res.body.isCurrentDeviceActive).toBe(false);
   });
 
-  test('Activate Device B replaces Device A', async () => {
+  test('Device B activate is rejected until explicit takeover', async () => {
+    await resetSchedulerDevices();
+    await activateDevice(DEVICE_A, { schedulerPreferenceId: 'pref-123' });
+
     const res = await setAuth(authReq()
       .post('/api/scheduler/active-device/activate'))
       .send({
@@ -457,8 +503,22 @@ describe('Active Device Management', () => {
         schedulerPreferenceId: 'pref-456',
       });
 
-    expect(res.status).toBe(200);
-    expect(res.body.activeDevice.deviceId).toBe(DEVICE_B.deviceId);
+    expect(res.status).toBe(409);
+    expect(res.body.success).toBe(false);
+    expect(res.body.errorCode).toBe('ACTIVE_DEVICE_EXISTS');
+    expect(res.body.activeDevice.deviceId).toBe(DEVICE_A.deviceId);
+
+    const takeover = await setAuth(authReq()
+      .post('/api/scheduler/active-device/activate'))
+      .send({
+        deviceId: DEVICE_B.deviceId,
+        deviceName: 'Device B',
+        devicePlatform: DEVICE_B.deviceType,
+        schedulerPreferenceId: 'pref-456',
+        takeover: true,
+      });
+    expect(takeover.status).toBe(200);
+    expect(takeover.body.activeDevice.deviceId).toBe(DEVICE_B.deviceId);
 
     const getRes = await setAuth(authReq()
       .get(`/api/scheduler/active-device?deviceId=${DEVICE_A.deviceId}`));
@@ -736,9 +796,22 @@ describe('Two-Device Acceptance Scenarios', () => {
         schedulerPreferenceId: TWO_DEVICE_PREF,
       });
 
-    // Backend allows takeover by design (atomic deactivate-old + activate-new)
-    expect(activateB.body.success).toBe(true);
-    expect(activateB.body.activeDevice.deviceId).toBe(DEVICE_B.deviceId);
+    expect(activateB.status).toBe(409);
+    expect(activateB.body.success).toBe(false);
+    expect(activateB.body.errorCode).toBe('ACTIVE_DEVICE_EXISTS');
+    expect(activateB.body.activeDevice.deviceId).toBe(DEVICE_A.deviceId);
+
+    const takeoverB = await setAuth(authReq()
+      .post('/api/scheduler/active-device/activate'))
+      .send({
+        deviceId: DEVICE_B.deviceId,
+        deviceName: 'Desktop App',
+        devicePlatform: DEVICE_B.deviceType,
+        schedulerPreferenceId: TWO_DEVICE_PREF,
+        takeover: true,
+      });
+    expect(takeoverB.body.success).toBe(true);
+    expect(takeoverB.body.activeDevice.deviceId).toBe(DEVICE_B.deviceId);
 
     // Device A is now inactive
     const checkA = await setAuth(authReq()
@@ -815,6 +888,15 @@ describe('Two-Device Acceptance Scenarios', () => {
   test('5. Backend lock prevents duplicates during race condition', async () => {
     const RACE_PREF = 'race-condition-pref';
 
+    await setAuth(authReq()
+      .post('/api/scheduler/active-device/activate'))
+      .send({
+        deviceId: DEVICE_A.deviceId,
+        deviceName: 'Pixel 8',
+        devicePlatform: DEVICE_A.deviceType,
+        schedulerPreferenceId: RACE_PREF,
+      });
+
     // Device A acquires lock
     const lockA = await setAuth(authReq()
       .post('/api/scheduler/acquire-lock'))
@@ -827,13 +909,24 @@ describe('Two-Device Acceptance Scenarios', () => {
       .send({ preferenceSetId: RACE_PREF, ...DEVICE_B });
     expect(lockB.body.data.granted).toBe(false);
     expect(lockB.body.data.heldBy).toBe(DEVICE_A.deviceId);
+    expect(lockB.body.data.reason).toBe('device_not_active');
 
     // Device A releases lock
     await setAuth(authReq()
       .post('/api/scheduler/release-lock'))
       .send({ preferenceSetId: RACE_PREF, deviceId: DEVICE_A.deviceId });
 
-    // Device B can now acquire
+    await setAuth(authReq()
+      .post('/api/scheduler/active-device/activate'))
+      .send({
+        deviceId: DEVICE_B.deviceId,
+        deviceName: 'Desktop App',
+        devicePlatform: DEVICE_B.deviceType,
+        schedulerPreferenceId: RACE_PREF,
+        takeover: true,
+      });
+
+    // Device B can now acquire after explicit takeover.
     const lockB2 = await setAuth(authReq()
       .post('/api/scheduler/acquire-lock'))
       .send({ preferenceSetId: RACE_PREF, ...DEVICE_B });

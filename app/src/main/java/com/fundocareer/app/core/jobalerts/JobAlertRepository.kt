@@ -137,6 +137,16 @@ class JobAlertRepository private constructor(
         preferenceDao.clearPendingDueRun(preferenceId)
     }
 
+    suspend fun markSetupConfirmationSent(preferenceId: String, sentAt: Long = System.currentTimeMillis()) {
+        Log.i(TAG, "markSetupConfirmationSent: preferenceId=$preferenceId")
+        preferenceDao.markSetupConfirmationSent(preferenceId, sentAt)
+    }
+
+    suspend fun markSetupConfirmationFailed(preferenceId: String, error: String?, errorCode: String?) {
+        Log.w(TAG, "markSetupConfirmationFailed: preferenceId=$preferenceId, errorCode=$errorCode, error=$error")
+        preferenceDao.markSetupConfirmationFailed(preferenceId, error, errorCode)
+    }
+
     suspend fun pauseAllDueToLogout(userEmail: String) {
         Log.d(TAG, "pauseAllDueToLogout: userEmail=$userEmail")
         preferenceDao.pauseAllDueToLogout(userEmail)

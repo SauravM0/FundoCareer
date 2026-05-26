@@ -54,13 +54,13 @@ object JobAlertReliabilityActions {
     fun isRequiredForBestReliability(type: ReliabilityItemType): Boolean {
         return when (type) {
             ReliabilityItemType.NotificationPermission -> true
-            ReliabilityItemType.BatteryOptimization -> true
-            ReliabilityItemType.MicrophonePermission -> true
-            ReliabilityItemType.CameraPermission -> true
-            ReliabilityItemType.FileUploadSupport -> true
+            ReliabilityItemType.BatteryOptimization -> false
+            ReliabilityItemType.MicrophonePermission -> false
+            ReliabilityItemType.CameraPermission -> false
+            ReliabilityItemType.FileUploadSupport -> false
             ReliabilityItemType.BackgroundData -> false
             ReliabilityItemType.AutostartOem -> false
-            ReliabilityItemType.ActiveScheduler -> true
+            ReliabilityItemType.ActiveScheduler -> false
         }
     }
 
@@ -228,6 +228,7 @@ object JobAlertReliabilityActions {
     private fun createNotificationSettingsIntent(context: Context): Intent {
         return Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
             putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
     }
 

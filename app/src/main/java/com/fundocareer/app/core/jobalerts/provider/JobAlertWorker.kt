@@ -16,6 +16,9 @@ import com.fundocareer.app.core.jobalerts.JobAlertStatus
 import com.fundocareer.app.core.jobalerts.ParsedJob
 import kotlinx.coroutines.flow.first
 import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.UUID
 
 class JobAlertWorker(
@@ -33,6 +36,7 @@ class JobAlertWorker(
         val ctx = applicationContext
         val inputPrefId = inputData.getString("preferenceId")
         val triggerReason = inputData.getString("triggerReason") ?: INPUT_TRIGGER_REASON_SCHEDULED
+        Log.i(TAG, "Worker started: triggerReason=$triggerReason, inputPreferenceId=$inputPrefId")
         Log.i(TAG, "inputData: preferenceId=$inputPrefId, triggerReason=$triggerReason")
 
         val tokenStore = SecureTokenStore(ctx)
@@ -100,6 +104,7 @@ class JobAlertWorker(
                 JobAlertStatus.NO_ACTIVE_PREFERENCE, 0, 0, null, triggerReason)
             return Result.success()
         }
+        Log.i(TAG, "Preference loaded: count=${preferences.size}, ids=${preferences.joinToString { it.id }}")
 
         val schedulerState = if (!inputPrefId.isNullOrBlank() && preferences.isNotEmpty()) {
             repository.getSchedulerState(preferences.first().userEmail)
@@ -113,22 +118,28 @@ class JobAlertWorker(
         }
 
         val completedRuns = mutableListOf<JSONObject>()
+        val notActiveDevicePreferenceIds = mutableSetOf<String>()
         var anyRetryable = false
         for (pref in preferences) {
             val result = processPreference(ctx, sessionEmail, authToken, pref,
-                repository, useCase, apiClient, deviceId, appVersion, completedRuns, triggerReason)
+                repository, useCase, apiClient, deviceId, appVersion, completedRuns, notActiveDevicePreferenceIds, triggerReason)
             if (result == Result.retry()) anyRetryable = true
         }
 
         if (completedRuns.isNotEmpty()) {
+            val firstPref = preferences.first()
             val schedulerStateJson = JSONObject().apply {
+                put("preferenceId", firstPref.id)
                 put("schedulerEnabled", true)
+                put("intervalMinutes", firstPref.intervalMinutes)
                 put("lastRunAt", System.currentTimeMillis())
+                put("nextScheduledRunAt", isoDate(System.currentTimeMillis() + firstPref.intervalMinutes.coerceAtLeast(15L) * 60_000L))
             }
             apiClient.syncState(
                 deviceId = deviceId,
                 deviceType = "android",
                 appVersion = appVersion,
+                preferences = preferenceSnapshotJson(firstPref),
                 schedulerState = schedulerStateJson,
                 recentRuns = completedRuns
             )
@@ -140,7 +151,7 @@ class JobAlertWorker(
                 repository.clearPendingDueRun(pref.id)
             }
 
-            for (pref in preferences) {
+            for (pref in preferences.filterNot { it.id in notActiveDevicePreferenceIds }) {
                 val interval = pref.intervalMinutes.coerceAtLeast(15L)
                 Log.i(TAG, "Scheduling next interval run for pref ${pref.id} in ${interval}min")
                 IntervalJobAlertScheduler.scheduleNextRun(ctx, pref.id, interval)
@@ -162,6 +173,7 @@ class JobAlertWorker(
         deviceId: String,
         appVersion: String,
         completedRuns: MutableList<JSONObject>,
+        notActiveDevicePreferenceIds: MutableSet<String>,
         triggerReason: String
     ): Result {
         val runId = UUID.randomUUID().toString()
@@ -214,45 +226,52 @@ class JobAlertWorker(
             return Result.retry()
         }
         if (!verifyResult.canSend) {
-            Log.i(TAG, "Device not active for ${pref.id}, skipping silently (active device: ${verifyResult.reason})")
+            Log.i(TAG, "Device not active for ${pref.id}, recording skip (reason=${verifyResult.reason})")
+            val status = JobAlertStatus.SKIPPED_NOT_ACTIVE_DEVICE
+            notActiveDevicePreferenceIds.add(pref.id)
+            useCase.saveSearchRun(userEmail, pref.id, runId, status, 0, 0,
+                "NOT_ACTIVE_DEVICE: ${verifyResult.reason ?: "device_not_active"}", triggerReason)
+            completedRuns.add(makeRunJson(pref.id, runId, status, 0, 0, triggerReason))
+            repository.updateNextScheduledRunAt(pref.id, null)
             return Result.success()
         }
         try {
             apiClient.heartbeatActiveDevice(deviceId, pref.id)
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.w(TAG, "heartbeatActiveDevice failed for ${pref.id}: ${e.message}", e)
         }
 
         val lockResult = apiClient.acquireLock(pref.id, deviceId, "android", appVersion)
         if (!lockResult.granted) {
-            Log.i(TAG, "Lock denied for ${pref.id}: held by ${lockResult.heldBy}")
+            Log.i(TAG, "Lock denied for ${pref.id}: reason=${lockResult.reason}, held by ${lockResult.heldBy}")
             val status = JobAlertStatus.SKIPPED_LOCK_HELD_BY_OTHER_DEVICE
             useCase.saveSearchRun(userEmail, pref.id, runId, status, 0, 0,
-                "Lock held by ${lockResult.heldBy}", triggerReason)
-            completedRuns.add(JSONObject().apply {
-                put("preferenceId", pref.id)
-                put("runId", runId)
-                put("status", status)
-                put("jobsFound", 0); put("jobsNew", 0)
-                put("startedAt", System.currentTimeMillis())
-                put("completedAt", System.currentTimeMillis())
-                put("triggeredBy", triggerReason)
-            })
+                lockResult.reason ?: "Lock held by ${lockResult.heldBy}", triggerReason)
+            completedRuns.add(makeRunJson(pref.id, runId, status, 0, 0, triggerReason))
             return Result.success()
         }
 
         var lockAcquired = true
         try {
+            Log.i(TAG, "Fetch started: preferenceId=${pref.id}, role=${pref.role}")
             val searchResult = useCase.searchJobs(pref)
+            Log.i(TAG, "Fetch completed: preferenceId=${pref.id}, jobs=${searchResult.jobs.size}, error=${searchResult.error}")
             if (searchResult.error != null) {
                 val status = when (searchResult.error) {
                     is com.fundocareer.app.core.jobalerts.JobSearchError.NetworkError -> JobAlertStatus.FAILED_NETWORK
                     is com.fundocareer.app.core.jobalerts.JobSearchError.RateLimited -> JobAlertStatus.FAILED_JOB_SOURCE
                     else -> JobAlertStatus.FAILED_JOB_SOURCE
                 }
+                val errorCode = when (searchResult.error) {
+                    is com.fundocareer.app.core.jobalerts.JobSearchError.Blocked -> "LINKEDIN_BLOCKED"
+                    is com.fundocareer.app.core.jobalerts.JobSearchError.RateLimited -> "LINKEDIN_RATE_LIMITED"
+                    is com.fundocareer.app.core.jobalerts.JobSearchError.NetworkError -> "BACKEND_UNREACHABLE"
+                    else -> "JOB_SOURCE_FAILED"
+                }
                 Log.w(TAG, "Search failed for ${pref.id}: ${searchResult.error}")
                 useCase.saveSearchRun(userEmail, pref.id, runId, status, 0, 0,
-                    searchResult.error.toString(), triggerReason)
-                return Result.retry()
+                    errorCode, triggerReason)
+                return if (errorCode == "BACKEND_UNREACHABLE" || errorCode == "LINKEDIN_RATE_LIMITED") Result.retry() else Result.success()
             }
 
             if (searchResult.jobs.isEmpty()) {
@@ -275,6 +294,12 @@ class JobAlertWorker(
 
             val newFingerprints = newStoredJobs.map { it.fingerprint }.filter { it.isNotBlank() }
             val emailCheck = apiClient.checkEmailedFingerprints(newFingerprints, pref.id)
+            if (emailCheck.error != null) {
+                Log.w(TAG, "checkEmailedFingerprints failed for ${pref.id}: ${emailCheck.error}")
+                useCase.saveSearchRun(userEmail, pref.id, runId, JobAlertStatus.FAILED_JOB_SOURCE,
+                    searchResult.jobs.size, newStoredJobs.size, emailCheck.error, triggerReason)
+                return Result.retry()
+            }
             val trulyNewJobs = newStoredJobs.filter { it.fingerprint in emailCheck.newFingerprints || it.fingerprint.isBlank() }.take(50)
 
             if (trulyNewJobs.isEmpty()) {
@@ -286,6 +311,7 @@ class JobAlertWorker(
                 return Result.success()
             }
 
+            Log.i(TAG, "Email request sent: preferenceId=${pref.id}, runId=$runId, jobs=${trulyNewJobs.size}")
             val emailResult = apiClient.sendJobAlertEmail(
                 to = userEmail,
                 preferenceId = pref.id,
@@ -295,11 +321,12 @@ class JobAlertWorker(
                 deviceId = deviceId,
                 runId = runId,
             )
+            Log.i(TAG, "Email response received: preferenceId=${pref.id}, success=${emailResult.success}, emailSent=${emailResult.emailSent}, errorCode=${emailResult.errorCode}")
 
             if (!emailResult.success || !emailResult.emailSent || emailResult.jobsSent <= 0) {
                 Log.e(TAG, "Email send failed for ${pref.id}: emailSent=${emailResult.emailSent}, jobsSent=${emailResult.jobsSent}, error=${emailResult.error}")
                 useCase.saveSearchRun(userEmail, pref.id, runId, JobAlertStatus.FAILED_EMAIL_BACKEND,
-                    searchResult.jobs.size, trulyNewJobs.size, emailResult.error ?: "emailSent=${emailResult.emailSent}, jobsSent=${emailResult.jobsSent}", triggerReason)
+                    searchResult.jobs.size, trulyNewJobs.size, emailResult.errorCode ?: emailResult.error ?: "EMAIL_SEND_FAILED", triggerReason)
                 return Result.retry()
             }
 
@@ -370,6 +397,7 @@ class JobAlertWorker(
     private fun jobToJson(job: ParsedJob): JSONObject {
         return JSONObject().apply {
             put("jobTitle", job.title)
+            job.jobId?.let { put("jobId", it) }
             put("company", job.company)
             put("location", job.location)
             put("description", job.description)
@@ -378,5 +406,27 @@ class JobAlertWorker(
             put("postedDate", job.postedDate ?: "")
             put("fingerprint", job.fingerprint)
         }
+    }
+
+    private fun preferenceSnapshotJson(pref: JobAlertPreferenceEntity): JSONObject {
+        return JSONObject().apply {
+            put("preferenceId", pref.id)
+            put("role", pref.role)
+            put("location", pref.location)
+            put("experience", pref.experience)
+            pref.remote?.let { put("remote", it) }
+            pref.salaryMin?.let { put("salaryMin", it) }
+            pref.salaryMax?.let { put("salaryMax", it) }
+            pref.skills?.let { put("skills", it) }
+            pref.company?.let { put("company", it) }
+            pref.datePosted?.let { put("datePosted", it) }
+            put("intervalMinutes", pref.intervalMinutes)
+            put("reportFormat", pref.reportFormat)
+            put("schedulerEnabled", pref.schedulerEnabled)
+        }
+    }
+
+    private fun isoDate(ts: Long): String {
+        return SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).format(Date(ts))
     }
 }

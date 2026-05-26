@@ -37,6 +37,15 @@ public class PermissionCoordinator {
         }
     }
 
+    public static boolean hasCameraHardware(Context context) {
+        try {
+            return context.getPackageManager().hasSystemFeature(
+                    PackageManager.FEATURE_CAMERA);
+        } catch (Exception e) {
+            return true;
+        }
+    }
+
     public static boolean hasMicrophonePermission(Context context) {
         try {
             return ContextCompat.checkSelfPermission(

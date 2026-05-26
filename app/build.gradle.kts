@@ -68,8 +68,23 @@ android {
             //   1. Environment variable (FUNDO_DEBUG_API_URL / FUNDO_DEBUG_WEB_URL)
             //   2. project-root/.env   (ANDROID_API_URL / ANDROID_FRONTEND_URL)
             //   3. Built-in defaults below
+            //
+            // For physical Android device testing with local backend:
+            //   Windows: ipconfig -> find your LAN IPv4 address (e.g. 192.168.1.42)
+            //   macOS:   ifconfig | grep inet
+            //   Then:    set FUNDO_DEBUG_API_URL=http://192.168.1.42:5000
+            //   Or add to project-root/.env: ANDROID_API_URL=http://192.168.1.42:5000
+            //   Phone and laptop must be on the same WiFi network.
+            //   Ensure backend port 5000 is open on the laptop firewall.
+            //
+            // For Android emulator: http://10.0.2.2:5000 reaches host localhost:5000.
             val debugApiUrl = resolveConfig("FUNDO_DEBUG_API_URL", "ANDROID_API_URL", "http://10.0.2.2:5000")
             val debugWebUrl = resolveConfig("FUNDO_DEBUG_WEB_URL", "ANDROID_FRONTEND_URL", "https://www.fundocareer.com")
+            println("========================================")
+            println("  DEBUG BUILD CONFIGURATION")
+            println("  API_BASE_URL:  $debugApiUrl")
+            println("  FRONTEND_URL:  $debugWebUrl")
+            println("========================================")
             buildConfigField("String", "API_BASE_URL", "\"$debugApiUrl\"")
             buildConfigField("String", "FRONTEND_URL", "\"$debugWebUrl\"")
             buildConfigField("String", "ENV_NAME", "\"debug\"")

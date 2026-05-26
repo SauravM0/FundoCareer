@@ -50,6 +50,10 @@ data class JobAlertPreferenceEntity(
     val schedulerEnabled: Boolean = false,
     val nextScheduledRunAt: Long? = null,
     val pendingDueRunAt: Long? = null,
+    val setupConfirmationSent: Boolean = false,
+    val setupConfirmationSentAt: Long? = null,
+    val setupConfirmationError: String? = null,
+    val setupConfirmationErrorCode: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 )
@@ -128,4 +132,10 @@ interface JobAlertPreferenceDao {
 
     @Query("UPDATE job_alert_preferences SET pendingDueRunAt = NULL, updatedAt = :now WHERE id = :id")
     suspend fun clearPendingDueRun(id: String, now: Long = System.currentTimeMillis())
+
+    @Query("UPDATE job_alert_preferences SET setupConfirmationSent = 1, setupConfirmationSentAt = :sentAt, setupConfirmationError = NULL, setupConfirmationErrorCode = NULL, updatedAt = :now WHERE id = :id")
+    suspend fun markSetupConfirmationSent(id: String, sentAt: Long, now: Long = System.currentTimeMillis())
+
+    @Query("UPDATE job_alert_preferences SET setupConfirmationError = :error, setupConfirmationErrorCode = :errorCode, updatedAt = :now WHERE id = :id")
+    suspend fun markSetupConfirmationFailed(id: String, error: String?, errorCode: String?, now: Long = System.currentTimeMillis())
 }

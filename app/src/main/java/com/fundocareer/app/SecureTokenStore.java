@@ -18,11 +18,13 @@ public class SecureTokenStore {
     private static final String KEY_REFRESH_TOKEN = "refresh_token";
     private static final String KEY_ID_TOKEN = "id_token";
     private static final String KEY_USER_EMAIL = "user_email";
+    private static final String KEY_LAST_USER_EMAIL = "last_user_email";
     private static final String KEY_USER_NAME = "user_name";
     private static final String KEY_USER_ID = "user_id";
     private static final String KEY_USER_IMAGE = "user_image";
     private static final String KEY_USER_ROLE = "user_role";
     private static final String KEY_TOKEN_EXPIRY = "token_expiry";
+    private static final String KEY_DEVICE_ID = "device_id";
 
     private final SharedPreferences store;
 
@@ -55,6 +57,7 @@ public class SecureTokenStore {
                 .putString(KEY_REFRESH_TOKEN, refreshToken)
                 .putString(KEY_ID_TOKEN, idToken)
                 .putString(KEY_USER_EMAIL, userEmail)
+                .putString(KEY_LAST_USER_EMAIL, userEmail)
                 .putString(KEY_USER_NAME, userName)
                 .putString(KEY_USER_ID, userId)
                 .putString(KEY_USER_IMAGE, userImage)
@@ -71,6 +74,7 @@ public class SecureTokenStore {
                 .putString(KEY_REFRESH_TOKEN, refreshToken)
                 .putString(KEY_ID_TOKEN, idToken)
                 .putString(KEY_USER_EMAIL, userEmail)
+                .putString(KEY_LAST_USER_EMAIL, userEmail)
                 .putString(KEY_USER_NAME, userName)
                 .putString(KEY_USER_ID, userId)
                 .putString(KEY_USER_IMAGE, userImage)
@@ -94,6 +98,12 @@ public class SecureTokenStore {
 
     public String getUserEmail() {
         return store.getString(KEY_USER_EMAIL, null);
+    }
+
+    public String getLastKnownUserEmail() {
+        String email = getUserEmail();
+        if (email != null && !email.isEmpty()) return email;
+        return store.getString(KEY_LAST_USER_EMAIL, null);
     }
 
     public String getUserName() {
@@ -147,9 +157,26 @@ public class SecureTokenStore {
                 + "}";
     }
 
+    public String getUserDeviceId() {
+        return store.getString(KEY_DEVICE_ID, null);
+    }
+
+    public void saveDeviceId(String deviceId) {
+        store.edit().putString(KEY_DEVICE_ID, deviceId).apply();
+    }
+
     public void clearAll() {
-        store.edit().clear().apply();
-        Log.i(TAG, "Secure token store cleared");
+        String lastEmail = getLastKnownUserEmail();
+        String deviceId = getUserDeviceId();
+        SharedPreferences.Editor editor = store.edit().clear();
+        if (lastEmail != null && !lastEmail.isEmpty()) {
+            editor.putString(KEY_LAST_USER_EMAIL, lastEmail);
+        }
+        if (deviceId != null && !deviceId.isEmpty()) {
+            editor.putString(KEY_DEVICE_ID, deviceId);
+        }
+        editor.apply();
+        Log.i(TAG, "Secure token store cleared; last known user identity preserved");
     }
 
     private String safe(String value) {

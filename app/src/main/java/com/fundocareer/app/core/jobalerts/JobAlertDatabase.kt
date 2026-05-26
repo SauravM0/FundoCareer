@@ -15,7 +15,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         JobEmailLedgerEntity::class,
         DeviceSchedulerStateEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 abstract class JobAlertDatabase : RoomDatabase() {
@@ -65,6 +65,15 @@ abstract class JobAlertDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE job_alert_preferences ADD COLUMN setupConfirmationSent INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE job_alert_preferences ADD COLUMN setupConfirmationSentAt INTEGER")
+                db.execSQL("ALTER TABLE job_alert_preferences ADD COLUMN setupConfirmationError TEXT")
+                db.execSQL("ALTER TABLE job_alert_preferences ADD COLUMN setupConfirmationErrorCode TEXT")
+            }
+        }
+
         fun getDatabase(context: Context): JobAlertDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -72,7 +81,7 @@ abstract class JobAlertDatabase : RoomDatabase() {
                     JobAlertDatabase::class.java,
                     "fundocareer_job_alerts.db"
                 )
-                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                     .build()
                 INSTANCE = instance
                 instance

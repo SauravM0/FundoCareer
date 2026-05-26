@@ -3,6 +3,7 @@ package com.fundocareer.app;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.Settings;
 import android.util.Log;
 import android.webkit.CookieManager;
 import android.webkit.WebView;
@@ -13,6 +14,7 @@ import org.json.JSONObject;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -27,16 +29,26 @@ public class AuthManager {
         void onError(String error);
     }
 
-    // POST https://www.fundocareer.com/api/auth/google  { idToken }
-    // POST https://www.fundocareer.com/api/auth/refresh  { refreshToken }
-    // POST https://www.fundocareer.com/api/auth/logout  { refreshToken }
-    // Relative paths are appended to getApiBaseUrl() which includes /api/auth
-    private static final String ENDPOINT_GOOGLE = "/google";
+    // POST https://www.fundocareer.com/api/mobile/auth/google/android-token  { idToken, deviceId }
+    // POST https://www.fundocareer.com/api/mobile/auth/refresh  { refreshToken }
+    // POST https://www.fundocareer.com/api/mobile/auth/logout  { refreshToken }
+    // Relative paths are appended to getApiBaseUrl() which includes /api/mobile/auth
+    private static final String ENDPOINT_GOOGLE = "/google/android-token";
     private static final String ENDPOINT_REFRESH = "/refresh";
     private static final String ENDPOINT_LOGOUT = "/logout";
 
     // For cookie/auth domain extraction, use www.fundocareer.com
     private static final String COOKIE_DOMAIN_URL = "https://www.fundocareer.com";
+
+    // Definite auth invalidation codes that should trigger token clearing
+    private static final java.util.Set<String> CLEAR_TOKEN_CODES = new java.util.HashSet<>(java.util.Arrays.asList(
+        "REFRESH_TOKEN_INVALID",
+        "REFRESH_TOKEN_REVOKED",
+        "REFRESH_TOKEN_EXPIRED",
+        "USER_DISABLED",
+        "USER_NOT_FOUND",
+        "GOOGLE_TOKEN_INVALID"
+    ));
 
     private final Context context;
     private final SecureTokenStore tokenStore;
@@ -57,19 +69,39 @@ public class AuthManager {
         return tokenStore.hasValidSession();
     }
 
+    private String getDeviceId() {
+        try {
+            String androidId = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ANDROID_ID);
+            if (androidId != null && !androidId.isEmpty() && !"9774d56d682e549c".equals(androidId)) {
+                return androidId;
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to get ANDROID_ID, using UUID fallback");
+        }
+        String uuid = tokenStore.getUserDeviceId();
+        if (uuid == null || uuid.isEmpty()) {
+            uuid = UUID.randomUUID().toString();
+            tokenStore.saveDeviceId(uuid);
+        }
+        return uuid;
+    }
+
     private String getApiBaseUrl() {
-        return BuildConfig.API_BASE_URL + "/api/auth";
+        return BuildConfig.API_BASE_URL + "/api/mobile/auth";
     }
 
     public void exchangeGoogleToken(String googleIdToken, AuthCallback callback) {
-        Log.i("FundoCareerApp", "Auth: exchanging Google token");
+        Log.i("FundoCareerApp", "Auth: exchanging Google token via mobile route");
         executor.execute(() -> {
             try {
                 JSONObject body = new JSONObject();
                 body.put("idToken", googleIdToken);
+                body.put("deviceId", getDeviceId());
+                body.put("platform", "android");
 
-                Log.i(TAG, "POSTing to: " + getApiBaseUrl() + ENDPOINT_GOOGLE);
-                JSONObject response = httpPost(getApiBaseUrl() + ENDPOINT_GOOGLE, body.toString());
+                String routeUrl = getApiBaseUrl() + ENDPOINT_GOOGLE;
+                Log.i(TAG, "POST route=" + routeUrl + " hasDeviceId=" + (getDeviceId() != null));
+                JSONObject response = httpPost(routeUrl, body.toString());
 
                 int statusCode = response.optInt("_statusCode", 0);
                 Log.i(TAG, "Token exchange status=" + statusCode);
@@ -81,8 +113,17 @@ public class AuthManager {
                     // Detect HTML (frontend SPA fallback serving index.html)
                     String rawLower = raw.toLowerCase(java.util.Locale.ROOT);
                     if (rawLower.contains("<!doctype html") || rawLower.contains("<html")) {
-                        Log.e(TAG, "FATAL: Backend auth endpoint returned frontend HTML. API route is hitting the frontend hosting, not the backend. Fix: add API rewrite/proxy on frontend hosting, or point Android API_BASE_URL to the backend directly.");
-                        postError(callback, "Backend auth endpoint returned frontend HTML. Check API proxy/route order.");
+                        String msg;
+                        if (BuildConfig.DEBUG && !BuildConfig.API_BASE_URL.contains(BuildConfig.FRONTEND_URL)) {
+                            msg = "API URL \"" + BuildConfig.API_BASE_URL + "\" returned HTML, not JSON. "
+                                + "Likely pointing to the frontend instead of the Node backend. "
+                                + "Set ANDROID_API_URL to the LAN IP of the machine running the backend (e.g. http://192.168.1.42:5000). "
+                                + "Ensure backend is running on port 5000 and firewall allows inbound.";
+                        } else {
+                            msg = "Backend auth endpoint returned frontend HTML. Check API proxy/route order.";
+                        }
+                        Log.e(TAG, msg);
+                        postError(callback, msg);
                         return;
                     }
                     try {
@@ -143,34 +184,39 @@ public class AuthManager {
     public void refreshAccessToken(AuthCallback callback) {
         String refreshToken = tokenStore.getRefreshToken();
         if (refreshToken == null || refreshToken.isEmpty()) {
+            Log.w(TAG, "Refresh: no refresh token available — keeping session (may be first login)");
             postError(callback, "No refresh token available");
             return;
         }
 
         executor.execute(() -> {
+            String routeUrl = getApiBaseUrl() + ENDPOINT_REFRESH;
             try {
                 JSONObject body = new JSONObject();
                 body.put("refreshToken", refreshToken);
 
-                JSONObject response = httpPost(getApiBaseUrl() + ENDPOINT_REFRESH, body.toString());
+                Log.i(TAG, "Refresh: POST route=" + routeUrl);
+                JSONObject response = httpPost(routeUrl, body.toString());
                 int statusCode = response.optInt("_statusCode", 200);
 
                 String raw = response.optString("rawResponse", null);
                 if (raw != null && !raw.isEmpty()) {
                     String rawLower = raw.toLowerCase(java.util.Locale.ROOT);
                     if (rawLower.contains("<!doctype html") || rawLower.contains("<html")) {
-                        Log.e(TAG, "FATAL: Refresh endpoint returned frontend HTML. API route is hitting the frontend hosting, not the backend.");
-                        postError(callback, "Refresh endpoint returned frontend HTML. Check API proxy/route order.");
+                        Log.e(TAG, "Refresh: endpoint returned frontend HTML — backend unreachable, keeping session");
+                        postError(callback, "Refresh: backend unreachable (HTML response), session preserved");
                         return;
                     }
                 }
 
+                String errorCode = response.optString("code", "");
+
                 if (statusCode >= 200 && statusCode < 300) {
                     String newAccessToken = response.optString("accessToken", null);
                     if (newAccessToken == null || newAccessToken.isEmpty()) {
-                        Log.e(TAG, "Token refresh FAILED: HTTP=" + statusCode + " but no accessToken in response");
+                        Log.e(TAG, "Refresh: HTTP=" + statusCode + " but no accessToken — clearing tokens as protocol violation");
                         tokenStore.clearAll();
-                        postError(callback, "Refresh returned no access token");
+                        postError(callback, "Refresh returned no access token — tokens cleared");
                         return;
                     }
 
@@ -195,16 +241,22 @@ public class AuthManager {
                             role,
                             expiryMs
                     );
-                    Log.i(TAG, "Token refreshed successfully");
+                    Log.i(TAG, "Refresh: success — tokens kept");
                     postSuccess(callback, response);
                 } else {
-                    Log.w(TAG, "Token refresh failed, clearing session");
-                    tokenStore.clearAll();
-                    postError(callback, "Refresh failed, session cleared");
+                    boolean shouldClear = CLEAR_TOKEN_CODES.contains(errorCode);
+                    if (shouldClear) {
+                        Log.w(TAG, "Refresh: FAILED HTTP=" + statusCode + " code=" + errorCode + " — clearing session");
+                        tokenStore.clearAll();
+                        postError(callback, "Refresh failed: " + errorCode + " — session cleared");
+                    } else {
+                        Log.w(TAG, "Refresh: FAILED HTTP=" + statusCode + " code=" + errorCode + " — keeping session (transient)");
+                        postError(callback, "Refresh failed: " + errorCode + " — session preserved");
+                    }
                 }
             } catch (Exception e) {
-                Log.e(TAG, "Token refresh exception", e);
-                postError(callback, e.getMessage());
+                Log.w(TAG, "Refresh: exception — keeping session: " + e.getMessage());
+                postError(callback, "Refresh exception: " + e.getMessage() + " — session preserved");
             }
         });
     }
@@ -220,9 +272,11 @@ public class AuthManager {
             try {
                 JSONObject body = new JSONObject();
                 if (refreshToken != null) body.put("refreshToken", refreshToken);
-                JSONObject response = httpPost(getApiBaseUrl() + ENDPOINT_LOGOUT, body.toString(),
-                        accessToken);
-                Log.i(TAG, "Backend logout: " + response.optInt("_statusCode", 0));
+                body.put("deviceId", getDeviceId());
+                String routeUrl = getApiBaseUrl() + ENDPOINT_LOGOUT;
+                Log.i(TAG, "Logout: POST route=" + routeUrl);
+                JSONObject response = httpPost(routeUrl, body.toString(), accessToken);
+                Log.i(TAG, "Backend logout: HTTP=" + response.optInt("_statusCode", 0));
             } catch (Exception e) {
                 Log.w(TAG, "Backend logout call failed", e);
             } finally {
@@ -318,18 +372,22 @@ public class AuthManager {
                 URL url = new URL(apiBase);
                 String host = url.getHost();
                 boolean isSecure = "https".equalsIgnoreCase(url.getProtocol());
+                // Use actual token expiry instead of hardcoded 30 days
+                long expiresIn = tokenStore.getTokenExpiry();
+                long maxAgeSec = Math.max(1, (expiresIn - System.currentTimeMillis()) / 1000);
                 // Set cookie on the API domain
                 String cookieValue = "token=" + accessToken
                         + "; Path=/"
                         + (isSecure ? "; Secure" : "")
-                        + "; Max-Age=" + (30 * 24 * 60 * 60);
+                        + "; Max-Age=" + maxAgeSec;
                 CookieManager.getInstance().setCookie(host, cookieValue);
                 CookieManager.getInstance().flush();
                 // Also set on www domain if different
                 if (!host.startsWith("www.") && host.contains(".")) {
                     CookieManager.getInstance().setCookie("www." + host, cookieValue);
                 }
-                Log.i(TAG, "Auth cookie set for domain: " + host + " (secure=" + isSecure + ")");
+                CookieManager.getInstance().flush();
+                Log.i(TAG, "Auth cookie set for domain: " + host + " (secure=" + isSecure + " maxAge=" + maxAgeSec + "s)");
             } catch (Exception e) {
                 Log.w(TAG, "Failed to set auth cookie: " + e.getMessage());
             }
@@ -348,10 +406,12 @@ public class AuthManager {
             URL url = new URL(apiBase);
             String host = url.getHost();
             boolean isSecure = "https".equalsIgnoreCase(url.getProtocol());
+            long expiresIn = tokenStore.getTokenExpiry();
+            long maxAgeSec = Math.max(1, (expiresIn - System.currentTimeMillis()) / 1000);
             String cookieValue = "token=" + accessToken
                     + "; Path=/"
                     + (isSecure ? "; Secure" : "")
-                    + "; Max-Age=" + (30 * 24 * 60 * 60);
+                    + "; Max-Age=" + maxAgeSec;
             CookieManager.getInstance().setCookie(host, cookieValue);
             CookieManager.getInstance().flush();
             if (!host.startsWith("www.") && host.contains(".")) {
@@ -416,47 +476,8 @@ public class AuthManager {
                 // Only set up interceptors once per page load
                 + "if(window.__fundocareerAuthInjected)return;"
                 + "window.__fundocareerAuthInjected=true;"
-                // Fetch interceptor with API URL rewriting and auth header injection
-                + "var origFetch=window.fetch;"
-                + "window.fetch=function(u,o){"
-                + "if(!o)o={};"
-                + "if(!o.headers)o.headers={};"
-                + "var tkn=window.__FUNDOCAREER_AUTH__&&window.__FUNDOCAREER_AUTH__.accessToken;"
-                + "var url=(typeof u==='string')?u:(u&&typeof u.url==='string')?u.url:null;"
-                + "if(url&&url.indexOf('/api/')>=0){"
-                + "var needRewrite=(url.indexOf('" + BuildConfig.FRONTEND_URL + "/api/')===0||url.indexOf('/api/')===0);"
-                + "if(needRewrite){url='" + BuildConfig.API_BASE_URL + "'+url.substring(url.indexOf('/api/'));}"
-                + "if(typeof u==='string'){"
-                + "if(tkn&&!o.headers['Authorization']&&!o.headers['authorization']){o.headers['Authorization']='Bearer '+tkn;}"
-                + "if(needRewrite)u=url;"
-                + "return origFetch.call(window,u,o);"
-                + "}else{"
-                + "var h=new Headers(u.headers);"
-                + "if(tkn&&!h.has('Authorization'))h.set('Authorization','Bearer '+tkn);"
-                + "return origFetch.call(window,new Request(url,{method:u.method,headers:h,body:u.body,mode:u.mode,credentials:u.credentials,cache:u.cache,redirect:u.redirect,referrer:u.referrer,integrity:u.integrity}),o);"
-                + "}"
-                + "}"
-                + "return origFetch.call(window,u,o);"
-                + "};"
-                // XMLHttpRequest interceptor with API URL rewriting
-                + "var origOpen=XMLHttpRequest.prototype.open;"
-                + "XMLHttpRequest.prototype.open=function(m,u,a){"
-                + "this.__xhrUrl=u;"
-                + "if(typeof u==='string'&&u.indexOf('/api/')>=0){"
-                + "if(u.indexOf('" + BuildConfig.FRONTEND_URL + "/api/')===0||u.indexOf('/api/')===0){"
-                + "u='" + BuildConfig.API_BASE_URL + "'+u.substring(u.indexOf('/api/'));"
-                + "}"
-                + "}"
-                + "return origOpen.call(this,m,u,a);"
-                + "};"
-                + "var origSend=XMLHttpRequest.prototype.send;"
-                + "XMLHttpRequest.prototype.send=function(b){"
-                + "var tkn=window.__FUNDOCAREER_AUTH__&&window.__FUNDOCAREER_AUTH__.accessToken;"
-                + "if(tkn&&typeof this.__xhrUrl==='string'&&this.__xhrUrl.indexOf('/api/')>=0){"
-                + "this.setRequestHeader('Authorization','Bearer '+tkn);"
-                + "}"
-                + "return origSend.call(this,b);"
-                + "};"
+                + getFetchInterceptorJs()
+                + getXhrInterceptorJs()
                 // Dispatch events
                 + "try{"
                 + "document.dispatchEvent(new CustomEvent('fundocareer-auth-ready',{detail:window.__FUNDOCAREER_AUTH__}));"
@@ -467,7 +488,8 @@ public class AuthManager {
                 + "console.log('[FundoCareer] Auth fully injected');"
                 + "})()";
         webView.evaluateJavascript(js, null);
-        Log.i(TAG, "Auth state injected into WebView [" + safeEmail + "]");
+        String routingMode = (BuildConfig.DEBUG && !BuildConfig.FRONTEND_URL.equals(BuildConfig.API_BASE_URL)) ? "LOCAL (rewritten)" : "PRODUCTION (no rewriting)";
+        Log.i(TAG, "Auth injected: WebView API routing=" + routingMode + " [" + safeEmail + "]");
     }
 
     public void injectAuthState(WebView webView, String accessToken, String refreshToken, String email, String name, String userId, String image, String role) {
@@ -517,52 +539,33 @@ public class AuthManager {
                 // Only set up interceptors once per page load
                 + "if(window.__fundocareerAuthInjected)return;"
                 + "window.__fundocareerAuthInjected=true;"
-                + "var origFetch=window.fetch;"
-                + "window.fetch=function(u,o){"
-                + "if(!o)o={};"
-                + "if(!o.headers)o.headers={};"
-                + "var tkn=window.__FUNDOCAREER_AUTH__&&window.__FUNDOCAREER_AUTH__.accessToken;"
-                + "var url=(typeof u==='string')?u:(u&&typeof u.url==='string')?u.url:null;"
-                + "if(url&&url.indexOf('/api/')>=0){"
-                + "var needRewrite=(url.indexOf('" + BuildConfig.FRONTEND_URL + "/api/')===0||url.indexOf('/api/')===0);"
-                + "if(needRewrite){url='" + BuildConfig.API_BASE_URL + "'+url.substring(url.indexOf('/api/'));}"
-                + "if(typeof u==='string'){"
-                + "if(tkn&&!o.headers['Authorization']&&!o.headers['authorization']){o.headers['Authorization']='Bearer '+tkn;}"
-                + "if(needRewrite)u=url;"
-                + "return origFetch.call(window,u,o);"
-                + "}else{"
-                + "var h=new Headers(u.headers);"
-                + "if(tkn&&!h.has('Authorization'))h.set('Authorization','Bearer '+tkn);"
-                + "return origFetch.call(window,new Request(url,{method:u.method,headers:h,body:u.body,mode:u.mode,credentials:u.credentials,cache:u.cache,redirect:u.redirect,referrer:u.referrer,integrity:u.integrity}),o);"
-                + "}"
-                + "}"
-                + "return origFetch.call(window,u,o);"
-                + "};"
-                // XMLHttpRequest interceptor with API URL rewriting
-                + "var origOpen=XMLHttpRequest.prototype.open;"
-                + "XMLHttpRequest.prototype.open=function(m,u,a){"
-                + "this.__xhrUrl=u;"
-                + "if(typeof u==='string'&&u.indexOf('/api/')>=0){"
-                + "if(u.indexOf('" + BuildConfig.FRONTEND_URL + "/api/')===0||u.indexOf('/api/')===0){"
-                + "u='" + BuildConfig.API_BASE_URL + "'+u.substring(u.indexOf('/api/'));"
-                + "}"
-                + "}"
-                + "return origOpen.call(this,m,u,a);"
-                + "};"
-                + "var origSend=XMLHttpRequest.prototype.send;"
-                + "XMLHttpRequest.prototype.send=function(b){"
-                + "var tkn=window.__FUNDOCAREER_AUTH__&&window.__FUNDOCAREER_AUTH__.accessToken;"
-                + "if(tkn&&typeof this.__xhrUrl==='string'&&this.__xhrUrl.indexOf('/api/')>=0){"
-                + "this.setRequestHeader('Authorization','Bearer '+tkn);"
-                + "}"
-                + "return origSend.call(this,b);"
-                + "};"
+                + getFetchInterceptorJs()
+                + getXhrInterceptorJs()
                 + "document.dispatchEvent(new CustomEvent('fundocareer-auth-ready',{detail:window.__FUNDOCAREER_AUTH__}));"
                 + "window.dispatchEvent(new CustomEvent('fundocareer:auth-updated',{detail:{source:'android-native',isAuthenticated:true,user:" + userJson + "}}));"
                 + "console.log('[FundoCareer] Auth fully injected via explicit params');"
                 + "})()";
         webView.evaluateJavascript(js, null);
-        Log.i(TAG, "Auth localStorage injected: hasAccessToken=" + (accessToken != null && !accessToken.isEmpty()) + " hasUser=" + (email != null && !email.isEmpty()));
+        String routingMode = (BuildConfig.DEBUG && !BuildConfig.FRONTEND_URL.equals(BuildConfig.API_BASE_URL)) ? "LOCAL (rewritten)" : "PRODUCTION (no rewriting)";
+        Log.i(TAG, "Auth injected (explicit params): WebView API routing=" + routingMode + " hasAccessToken=" + (accessToken != null && !accessToken.isEmpty()) + " hasUser=" + (email != null && !email.isEmpty()));
+    }
+
+    private String getFetchInterceptorJs() {
+        if (BuildConfig.DEBUG && !BuildConfig.FRONTEND_URL.equals(BuildConfig.API_BASE_URL)) {
+            String apiBaseUrl = safeJs(BuildConfig.API_BASE_URL);
+            String frontendUrl = safeJs(BuildConfig.FRONTEND_URL);
+            return "var origFetch=window.fetch;window.fetch=function(u,o){if(!o)o={};if(!o.headers)o.headers={};var tkn=window.__FUNDOCAREER_AUTH__&&window.__FUNDOCAREER_AUTH__.accessToken;if(typeof u==='string'){if(u.indexOf('/api/')===0){u='" + apiBaseUrl + "'+u;}else if(u.indexOf('" + frontendUrl + "/api/')>=0){u=u.replace('" + frontendUrl + "','" + apiBaseUrl + "');}if(tkn&&!o.headers['Authorization']&&!o.headers['authorization']){o.headers['Authorization']='Bearer '+tkn;}return origFetch.call(window,u,o);}else if(u&&typeof u.url==='string'&&u.url.indexOf('/api/')>=0){var nu=u.url;if(nu.indexOf('/api/')===0){nu='" + apiBaseUrl + "'+nu;}else if(nu.indexOf('" + frontendUrl + "/api/')>=0){nu=nu.replace('" + frontendUrl + "','" + apiBaseUrl + "');}var h=new Headers(u.headers);if(tkn&&!h.has('Authorization'))h.set('Authorization','Bearer '+tkn);return origFetch.call(window,new Request(nu,{method:u.method,headers:h,body:u.body,mode:u.mode,credentials:u.credentials,cache:u.cache,redirect:u.redirect,referrer:u.referrer,integrity:u.integrity}),o);}return origFetch.call(window,u,o);};";
+        }
+        return "var origFetch=window.fetch;window.fetch=function(u,o){if(!o)o={};if(!o.headers)o.headers={};var tkn=window.__FUNDOCAREER_AUTH__&&window.__FUNDOCAREER_AUTH__.accessToken;if(typeof u==='string'){if(tkn&&!o.headers['Authorization']&&!o.headers['authorization']){o.headers['Authorization']='Bearer '+tkn;}return origFetch.call(window,u,o);}else if(u&&typeof u.url==='string'&&u.url.indexOf('/api/')>=0){var h=new Headers(u.headers);if(tkn&&!h.has('Authorization'))h.set('Authorization','Bearer '+tkn);return origFetch.call(window,new Request(u.url,{method:u.method,headers:h,body:u.body,mode:u.mode,credentials:u.credentials,cache:u.cache,redirect:u.redirect,referrer:u.referrer,integrity:u.integrity}),o);}return origFetch.call(window,u,o);};";
+    }
+
+    private String getXhrInterceptorJs() {
+        if (BuildConfig.DEBUG && !BuildConfig.FRONTEND_URL.equals(BuildConfig.API_BASE_URL)) {
+            String apiBaseUrl = safeJs(BuildConfig.API_BASE_URL);
+            String frontendUrl = safeJs(BuildConfig.FRONTEND_URL);
+            return "var origOpen=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u,a){if(typeof u==='string'&&u.indexOf('/api/')>=0){if(u.indexOf('/api/')===0){u='" + apiBaseUrl + "'+u;}else if(u.indexOf('" + frontendUrl + "/api/')>=0){u=u.replace('" + frontendUrl + "','" + apiBaseUrl + "');}}this.__xhrUrl=u;return origOpen.call(this,m,u,a);};var origSend=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.send=function(b){var tkn=window.__FUNDOCAREER_AUTH__&&window.__FUNDOCAREER_AUTH__.accessToken;if(tkn&&typeof this.__xhrUrl==='string'&&this.__xhrUrl.indexOf('/api/')>=0){this.setRequestHeader('Authorization','Bearer '+tkn);}return origSend.call(this,b);};";
+        }
+        return "var origOpen=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u,a){this.__xhrUrl=u;return origOpen.call(this,m,u,a);};var origSend=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.send=function(b){var tkn=window.__FUNDOCAREER_AUTH__&&window.__FUNDOCAREER_AUTH__.accessToken;if(tkn&&typeof this.__xhrUrl==='string'&&this.__xhrUrl.indexOf('/api/')>=0){this.setRequestHeader('Authorization','Bearer '+tkn);}return origSend.call(this,b);};";
     }
 
     public void verifyProfileAfterInjection(WebView webView) {
@@ -573,11 +576,10 @@ public class AuthManager {
                 + "console.log('[FundoCareer-Verify] localStorage token length='+(tkn?tkn.length:0));"
                 + "if(tkn&&tkn.length>10){"
                 + "fetch('/api/user/profile',{credentials:'include',headers:{Authorization:'Bearer '+tkn}})"
-                + ".then(function(r){return r.status;})"
-                + ".then(function(s){console.log('[FundoCareer-Verify] /api/user/profile status='+s);})"
-                + ".catch(function(e){console.log('[FundoCareer-Verify] fetch error:',e);});"
+                + ".then(function(r){console.log('[FundoCareer-Verify] /api/user/profile status='+r.status);})"
+                + ".catch(function(e){console.error('[FundoCareer-Verify] fetch error:',e);});"
                 + "}"
-                + "}catch(e){console.log('[FundoCareer-Verify] error:',e);}"
+                + "}catch(e){console.error('[FundoCareer-Verify] error:',e);}"
                 + "})()";
         webView.evaluateJavascript(js, null);
         Log.i(TAG, "Profile verification dispatched to WebView");
@@ -585,7 +587,7 @@ public class AuthManager {
 
     public void handleHttpError(WebView webView, int statusCode, String url) {
         if (statusCode != 401) return;
-        Log.w(TAG, "HTTP 401 for " + url);
+        Log.w(TAG, "HTTP 401 for " + maskUrl(url));
 
         if (tokenStore.hasRefreshToken()) {
             refreshAccessToken(new AuthCallback() {
@@ -601,22 +603,32 @@ public class AuthManager {
 
                 @Override
                 public void onError(String error) {
-                    Log.e(TAG, "Refresh failed after 401, force logout: " + error);
-                    logout(webView, () -> {
-                        if (webView != null) {
-                            webView.post(() -> webView.loadUrl(BuildConfig.FRONTEND_URL + "/"));
-                        }
-                    });
+                    boolean isDefiniteAuthError = error.contains("REFRESH_TOKEN_INVALID")
+                            || error.contains("REFRESH_TOKEN_REVOKED")
+                            || error.contains("REFRESH_TOKEN_EXPIRED")
+                            || error.contains("USER_DISABLED")
+                            || error.contains("session cleared");
+                    if (isDefiniteAuthError) {
+                        Log.w(TAG, "Refresh failed after 401 (auth error), force logout: " + error);
+                        logout(webView, () -> {
+                            if (webView != null) {
+                                webView.post(() -> webView.loadUrl(BuildConfig.FRONTEND_URL + "/"));
+                            }
+                        });
+                    } else {
+                        Log.w(TAG, "Refresh failed after 401 (transient), keeping session: " + error);
+                    }
                 }
             });
         } else {
-            Log.w(TAG, "No refresh token, force logout on 401");
-            logout(webView, () -> {
-                if (webView != null) {
-                    webView.post(() -> webView.loadUrl(BuildConfig.FRONTEND_URL + "/"));
-                }
-            });
+            Log.w(TAG, "No refresh token on 401; preserving local scheduler identity and leaving explicit logout to user action");
         }
+    }
+
+    private String maskUrl(String url) {
+        if (url == null) return "null";
+        return url.replaceAll("token=[^&]+", "token=***")
+                  .replaceAll("access_token=[^&]+", "access_token=***");
     }
 
     private void postSuccess(AuthCallback callback, JSONObject data) {

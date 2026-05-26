@@ -90,6 +90,8 @@ public class MainActivity extends BridgeActivity {
     private boolean backPressedOnce = false;
     private boolean isTabNavigation = false;
     private boolean isInitialLoad = true;
+    private boolean interviewNavHidden = false;
+    private boolean jobsActivityVisible = false;
 
     private int activeNavId = R.id.nav_home;
     private final java.util.Map<Integer, View> navItemViews = new java.util.HashMap<>();
@@ -272,6 +274,7 @@ public class MainActivity extends BridgeActivity {
         Log.i("FundoCareerApp", "onCreate started");
 
         AppConfig.logConfig();
+        BackendDiagnostics.run();
 
         buildTabShell();
         createLoadingOverlay();
@@ -307,6 +310,7 @@ public class MainActivity extends BridgeActivity {
                         try {
                             if (online) {
                                 hideOfflineOverlay();
+                                Log.i(NET_LOG_TAG, "backend connectivity state: online");
                                 if (wasOffline) {
                                     WebView wv = getSafeWebView();
                                     if (wv != null) {
@@ -338,6 +342,7 @@ public class MainActivity extends BridgeActivity {
                 });
             }
         }
+        jobsActivityVisible = false;
     }
 
     @Override
@@ -882,6 +887,7 @@ public class MainActivity extends BridgeActivity {
 
                 // Phase 3: Intercept all Google OAuth login URLs — never load in WebView
                 if (url.contains("/api/auth/google")
+                        || url.contains("/api/mobile/auth/google")
                         || url.contains("accounts.google.com/o/oauth2")
                         || url.contains("accounts.google.com/signin")
                         || url.contains("googleapis.com/oauth")) {
@@ -960,6 +966,20 @@ public class MainActivity extends BridgeActivity {
                         loadingOverlay.setVisibility(View.GONE);
                     }
                 }
+                // Hide bottom nav on interview pages for full-screen experience
+                if (url != null && isInterviewRoute(url)) {
+                    if (navCapsule != null && !interviewNavHidden && navCapsule.getVisibility() == View.VISIBLE) {
+                        hideNav();
+                        interviewNavHidden = true;
+                        Log.i(TAG, "[Interview] Bottom nav hidden for full-screen interview page");
+                    }
+                } else if (interviewNavHidden) {
+                    interviewNavHidden = false;
+                    if (navPolicy != null && navPolicy.isUserLoggedIn()) {
+                        showNav();
+                        Log.i(TAG, "[Interview] Bottom nav restored after leaving interview page");
+                    }
+                }
                 if (view != null) {
                     try {
                         view.evaluateJavascript(
@@ -976,12 +996,15 @@ public class MainActivity extends BridgeActivity {
                 }
                 if (authManager != null && authManager.isLoggedIn() && view != null) {
                     try {
+                        Log.i(TAG, "[WebView] API routing=PRODUCTION — page: " + (url != null && url.contains("/api/") ? url : "(" + (url != null ? "browsing" : "null") + ")"));
                         authManager.injectAuthState(view);
+                        Log.i(TAG, "[WebView] auth injected: page start");
                     } catch (Exception e) {
                         Log.w("FundoCareerApp", "Auth injection error on page start", e);
                     }
                 }
                 if (BuildConfig.DEBUG) Log.i(TAG, "Loading: " + url);
+                Log.i(NAV_LOG_TAG, "WebView URL load started: " + url);
             }
 
             @Override
@@ -999,6 +1022,16 @@ public class MainActivity extends BridgeActivity {
                 hideLoading();
                 if (view != null) {
                     injectPageSetup(view);
+                    injectMobileAppStyles(view);
+                    if (authManager != null && authManager.isLoggedIn()) {
+                        try {
+                            authManager.injectAuthState(view);
+                            Log.i(TAG, "[WebView] auth injected: page finished");
+                            Log.i(TAG, "[WebView] Auth re-injected on page finished");
+                        } catch (Exception e) {
+                            Log.w("FundoCareerApp", "Auth injection error on page finished", e);
+                        }
+                    }
                 }
                 syncTabState(url);
                 if (url != null && navPolicy != null && navPolicy.shouldShowLoginGate(url)) {
@@ -1011,6 +1044,7 @@ public class MainActivity extends BridgeActivity {
                 if (url != null && BuildConfig.DEBUG) {
                     Log.i(TAG, "Loaded: " + url);
                 }
+                Log.i(NAV_LOG_TAG, "WebView URL load finished: " + url);
             }
 
             @Override
@@ -1034,7 +1068,8 @@ public class MainActivity extends BridgeActivity {
                     if (code == WebViewClient.ERROR_HOST_LOOKUP || code == WebViewClient.ERROR_CONNECT
                             || code == WebViewClient.ERROR_TIMEOUT) {
                         if (BuildConfig.DEBUG) {
-                            msg = "Cannot reach www.fundocareer.com.\nCheck internet or tap to retry.";
+                            String host = AppConfig.getAllowedHost();
+                            msg = "Cannot reach " + host + ".\nCheck internet or tap to retry.";
                         } else {
                             msg = "Cannot reach server. Tap to retry.";
                         }
@@ -1092,6 +1127,13 @@ public class MainActivity extends BridgeActivity {
 
             @Override
             public void onProgressChanged(WebView view, int newProgress) {
+                if (topProgressBar != null && !isInitialLoad) {
+                    topProgressBar.setIndeterminate(false);
+                    topProgressBar.setMax(100);
+                    topProgressBar.setProgress(newProgress);
+                    topProgressBar.setVisibility(newProgress >= 100 ? View.GONE : View.VISIBLE);
+                    if (newProgress < 100) topProgressBar.bringToFront();
+                }
             }
 
             @Override
@@ -1174,33 +1216,35 @@ public class MainActivity extends BridgeActivity {
                     String[] resources = request.getResources();
                     StringBuilder sb = new StringBuilder();
                     for (String r : resources) sb.append(r).append(",");
-                    Log.i(TAG, "WebView permission request from " + origin + ": [" + sb + "]");
+                    Log.i(TAG, "[WebView] Permission request from " + origin + ": resources=[" + sb + "]");
 
                     boolean hasAudio = false;
                     boolean hasVideo = false;
-                    boolean hasOther = false;
                     for (String resource : resources) {
                         if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource)) {
                             hasAudio = true;
                         } else if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource)) {
                             hasVideo = true;
                         } else {
-                            hasOther = true;
+                            Log.i(TAG, "[WebView] Unrecognized resource in request: " + resource + " (will not be granted)");
                         }
                     }
 
                     if (hasAudio && hasVideo) {
+                        Log.i(TAG, "[WebView] Combined audio+video permission request, dispatching to combined handler");
                         handleWebViewMicAndCamera(request);
                     } else if (hasAudio) {
+                        Log.i(TAG, "[WebView] Audio-only permission request, dispatching to mic handler");
                         handleWebViewMicrophone(request);
                     } else if (hasVideo) {
+                        Log.i(TAG, "[WebView] Video-only permission request, dispatching to camera handler");
                         handleWebViewCamera(request);
                     } else {
-                        Log.w(TAG, "Unrecognized WebView permission resources, denying: [" + sb + "]");
+                        Log.w(TAG, "[WebView] No recognized resources in permission request, denying: [" + sb + "]");
                         request.deny();
                     }
                 } catch (Exception e) {
-                    Log.e(TAG, "Permission request error", e);
+                    Log.e(TAG, "[WebView] Permission request handler error", e);
                     try { request.deny(); } catch (Exception ignored) {}
                 }
             }
@@ -1362,6 +1406,7 @@ public class MainActivity extends BridgeActivity {
             offlineOverlay.setVisibility(View.VISIBLE);
             offlineOverlay.bringToFront();
             Log.i(NET_LOG_TAG, "Offline overlay shown");
+            Log.i(NET_LOG_TAG, "backend connectivity state: offline");
         } catch (Exception e) {
             Log.e(TAG, "showOfflineOverlay error", e);
         }
@@ -1487,12 +1532,21 @@ public class MainActivity extends BridgeActivity {
 
     private void handleWebViewCamera(PermissionRequest request) {
         try {
+            if (!PermissionCoordinator.hasCameraHardware(this)) {
+                Log.w(TAG, "[WebView] No camera hardware available, denying camera request");
+                request.deny();
+                Toast.makeText(this,
+                        "No camera available on this device",
+                        Toast.LENGTH_LONG).show();
+                return;
+            }
+
             if (PermissionCoordinator.hasCameraPermission(this)) {
-                Log.i(TAG, "Camera permission already granted, granting WebView RESOURCE_VIDEO_CAPTURE");
+                Log.i(TAG, "[WebView] Camera permission already granted, granting RESOURCE_VIDEO_CAPTURE");
                 request.grant(new String[]{PermissionRequest.RESOURCE_VIDEO_CAPTURE});
                 return;
             }
-            Log.i(TAG, "Camera permission not yet granted, requesting runtime CAMERA");
+            Log.i(TAG, "[WebView] Camera permission not yet granted, requesting runtime CAMERA");
             PermissionCoordinator.showExplanationDialog(this,
                     "Camera Access",
                     "This feature needs access to your camera.",
@@ -1500,16 +1554,16 @@ public class MainActivity extends BridgeActivity {
                         @Override
                         public void onGranted() {
                             try {
-                                Log.i(TAG, "Runtime camera permission granted, granting WebView RESOURCE_VIDEO_CAPTURE");
+                                Log.i(TAG, "[WebView] Runtime camera permission granted, granting RESOURCE_VIDEO_CAPTURE");
                                 request.grant(new String[]{PermissionRequest.RESOURCE_VIDEO_CAPTURE});
                             } catch (Exception e) {
-                                Log.w(TAG, "Grant after camera permission failed", e);
+                                Log.w(TAG, "[WebView] Grant after camera permission failed", e);
                             }
                         }
 
                         @Override
                         public void onDenied(boolean neverAskAgain) {
-                            Log.w(TAG, "Runtime camera permission denied, denying WebView request");
+                            Log.w(TAG, "[WebView] Runtime camera permission denied, denying WebView request");
                             try { request.deny(); } catch (Exception ignored) {}
                             if (neverAskAgain) {
                                 PermissionCoordinator.showPermissionDeniedDialog(
@@ -1524,22 +1578,60 @@ public class MainActivity extends BridgeActivity {
                         }
                     }),
                     () -> {
-                        Log.i(TAG, "User cancelled camera explanation dialog, denying WebView request");
+                        Log.i(TAG, "[WebView] User cancelled camera explanation dialog, denying request");
                         try { request.deny(); } catch (Exception ignored) {}
                     });
         } catch (Exception e) {
-            Log.e(TAG, "Camera permission flow error", e);
+            Log.e(TAG, "[WebView] Camera permission flow error", e);
             try { request.deny(); } catch (Exception ignored) {}
         }
     }
 
     private void handleWebViewMicAndCamera(PermissionRequest request) {
         try {
-            boolean hasMic = PermissionCoordinator.hasMicrophonePermission(this);
-            boolean hasCam = PermissionCoordinator.hasCameraPermission(this);
+            boolean hasMicHardware = PermissionCoordinator.hasMicrophoneHardware(this);
+            boolean hasCamHardware = PermissionCoordinator.hasCameraHardware(this);
 
-            if (hasMic && hasCam) {
-                Log.i(TAG, "Both mic and camera already granted, granting combined WebView request");
+            if (!hasMicHardware && !hasCamHardware) {
+                Log.w(TAG, "[WebView] No mic or camera hardware, denying combined request");
+                request.deny();
+                Toast.makeText(this,
+                        "No microphone or camera available on this device",
+                        Toast.LENGTH_LONG).show();
+                return;
+            }
+
+            if (!hasMicHardware) {
+                Log.i(TAG, "[WebView] No mic hardware, granting camera only from combined request");
+                PermissionCoordinator.showExplanationDialog(this,
+                        "Camera Access",
+                        "This feature needs access to your camera.",
+                        () -> handleWebViewCamera(request),
+                        () -> {
+                            Log.i(TAG, "[WebView] User cancelled camera-only dialog from combined request");
+                            try { request.deny(); } catch (Exception ignored) {}
+                        });
+                return;
+            }
+
+            if (!hasCamHardware) {
+                Log.i(TAG, "[WebView] No camera hardware, granting mic only from combined request");
+                PermissionCoordinator.showExplanationDialog(this,
+                        "Microphone Access",
+                        "This feature needs access to your microphone.",
+                        () -> handleWebViewMicrophone(request),
+                        () -> {
+                            Log.i(TAG, "[WebView] User cancelled mic-only dialog from combined request");
+                            try { request.deny(); } catch (Exception ignored) {}
+                        });
+                return;
+            }
+
+            boolean hasMicPerm = PermissionCoordinator.hasMicrophonePermission(this);
+            boolean hasCamPerm = PermissionCoordinator.hasCameraPermission(this);
+
+            if (hasMicPerm && hasCamPerm) {
+                Log.i(TAG, "[WebView] Both mic and camera already granted, granting combined request");
                 request.grant(new String[]{
                         PermissionRequest.RESOURCE_AUDIO_CAPTURE,
                         PermissionRequest.RESOURCE_VIDEO_CAPTURE
@@ -1548,14 +1640,23 @@ public class MainActivity extends BridgeActivity {
                 return;
             }
 
-            Log.i(TAG, "Combined mic+cam requested, requesting runtime permissions: mic=" + hasMic + " cam=" + hasCam);
-            pendingPermissionRequest = request;
-            micAndCameraLauncher.launch(new String[]{
-                    android.Manifest.permission.RECORD_AUDIO,
-                    android.Manifest.permission.CAMERA
-            });
+            Log.i(TAG, "[WebView] Combined mic+cam request, showing explanation then requesting: mic=" + hasMicPerm + " cam=" + hasCamPerm);
+            PermissionCoordinator.showExplanationDialog(this,
+                    "Microphone & Camera Access",
+                    "This feature needs access to your microphone and camera.",
+                    () -> {
+                        pendingPermissionRequest = request;
+                        micAndCameraLauncher.launch(new String[]{
+                                android.Manifest.permission.RECORD_AUDIO,
+                                android.Manifest.permission.CAMERA
+                        });
+                    },
+                    () -> {
+                        Log.i(TAG, "[WebView] User cancelled combined permission dialog, denying request");
+                        try { request.deny(); } catch (Exception ignored) {}
+                    });
         } catch (Exception e) {
-            Log.e(TAG, "Combined permission flow error", e);
+            Log.e(TAG, "[WebView] Combined permission flow error", e);
             try { request.deny(); } catch (Exception ignored) {}
         }
     }
@@ -1616,19 +1717,18 @@ public class MainActivity extends BridgeActivity {
             return true;
         }
         if (itemId == R.id.nav_jobs) {
-            setActiveNavItem(itemId);
-            saveActiveTab(itemId);
-            Intent intent = new Intent(this, JobsPageActivity.class);
-            startActivity(intent);
+            launchJobsTab("bottom-nav");
             return true;
         }
         setActiveNavItem(itemId);
+        jobsActivityVisible = false;
         String targetUrl = getUrlForTabId(itemId);
         WebView webView = getSafeWebView();
         if (webView == null) return false;
         String currentUrl = webView.getUrl();
 
         if (currentUrl != null && urlsMatch(currentUrl, targetUrl)) {
+            Log.i(NAV_LOG_TAG, "tab change ignored: already on id=" + itemId + " url=" + targetUrl);
             return true;
         }
 
@@ -1639,6 +1739,7 @@ public class MainActivity extends BridgeActivity {
 
         isTabNavigation = true;
         saveActiveTab(itemId);
+        Log.i(NAV_LOG_TAG, "tab change: id=" + itemId + " url=" + targetUrl);
         String targetPath = Uri.parse(targetUrl).getPath();
         if (targetPath == null || targetPath.isEmpty()) targetPath = "/";
         String js = "window.__fundocareerNavigate && window.__fundocareerNavigate(" + org.json.JSONObject.quote(targetPath) + ")";
@@ -1656,6 +1757,19 @@ public class MainActivity extends BridgeActivity {
                 .edit()
                 .putInt(KEY_ACTIVE_TAB, tabId)
                 .apply();
+        Log.i(NAV_LOG_TAG, "saved active tab: " + tabId);
+    }
+
+    private void launchJobsTab(String reason) {
+        setActiveNavItem(R.id.nav_jobs);
+        saveActiveTab(R.id.nav_jobs);
+        Log.i(NAV_LOG_TAG, "tab change: id=" + R.id.nav_jobs + " native=true reason=" + reason);
+        if (jobsActivityVisible) {
+            Log.i(NAV_LOG_TAG, "JobsPageActivity already visible; not relaunching");
+            return;
+        }
+        jobsActivityVisible = true;
+        startActivity(new Intent(this, JobsPageActivity.class));
     }
 
     private void syncTabState(String url) {
@@ -1741,6 +1855,18 @@ public class MainActivity extends BridgeActivity {
         });
 
         setActiveNavItem(R.id.nav_home);
+    }
+
+    private boolean isInterviewRoute(String url) {
+        if (url == null) return false;
+        try {
+            String path = android.net.Uri.parse(url).getPath();
+            return path != null && (path.contains("/mock-interview")
+                    || path.contains("/interview")
+                    || path.contains("/guided-journey"));
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private void showNav() {
@@ -2328,7 +2454,14 @@ public class MainActivity extends BridgeActivity {
                 loadingOverlay.removeAllViews();
                 loadingOverlay.setVisibility(View.GONE);
                 WebView wv = getSafeWebView();
-                if (wv != null) wv.reload();
+                if (wv != null) {
+                    String current = wv.getUrl();
+                    if (current == null || "about:blank".equals(current)) {
+                        current = getUrlForTabId(activeNavId);
+                    }
+                    Log.i(NET_LOG_TAG, "Retry tapped, loading " + current);
+                    wv.loadUrl(current);
+                }
             });
             center.addView(retryBtn);
 
@@ -2516,23 +2649,34 @@ public class MainActivity extends BridgeActivity {
         }
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         int savedTabId = prefs.getInt(KEY_ACTIVE_TAB, R.id.nav_home);
-        String url = getUrlForTabId(savedTabId);
-
         boolean validTab = false;
         for (NavItemData item : NAV_ITEMS) {
             if (item.id == savedTabId) { validTab = true; break; }
         }
         if (!validTab) savedTabId = R.id.nav_home;
+        String url = getUrlForTabId(savedTabId);
 
         if (networkMonitor != null && !networkMonitor.isOnline()) {
-            setActiveNavItem(R.id.nav_home);
+            setActiveNavItem(savedTabId);
             showOfflineOverlay();
             return;
         }
 
         // Load home page immediately — don't block on token refresh
-        setActiveNavItem(R.id.nav_home);
-        webView.loadUrl(AppConfig.getDefaultUrl());
+        setActiveNavItem(savedTabId);
+        if (savedTabId == R.id.nav_jobs) {
+            if (webView.getUrl() == null || "about:blank".equals(webView.getUrl())) {
+                webView.loadUrl(AppConfig.getDefaultUrl());
+            }
+            webView.postDelayed(() -> {
+                if (!isFinishing() && !isDestroyed()) {
+                    launchJobsTab("restore");
+                }
+            }, 250);
+        } else {
+            Log.i(NAV_LOG_TAG, "restore active tab: id=" + savedTabId + " url=" + url);
+            webView.loadUrl(url);
+        }
 
         // Defer token refresh to background — page already loading
         if (authManager != null && authManager.getTokenStore().hasRefreshToken()

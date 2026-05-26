@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -59,13 +60,19 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -74,12 +81,14 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import android.content.Context
+import android.util.Log
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import com.fundocareer.app.BuildConfig
 import com.fundocareer.app.core.jobalerts.JobAlertReliabilityEngine
 import com.fundocareer.app.core.jobalerts.JobAlertReliabilityStatus
 import com.fundocareer.app.core.jobalerts.OverallReliability
@@ -106,17 +115,28 @@ fun DiscoverySection(viewModel: JobsViewModel) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var showReliabilitySetup by remember { mutableStateOf(false) }
+    var showReliabilitySetup by rememberSaveable { mutableStateOf(false) }
     var setupChecklistItems by remember { mutableStateOf<List<ReliabilityChecklistItem>>(emptyList()) }
     var setupReliabilityStatus by remember { mutableStateOf<JobAlertReliabilityStatus?>(null) }
-    var pendingSetupSave by remember { mutableStateOf(false) }
+    var pendingSetupSave by rememberSaveable { mutableStateOf(false) }
     var setupRefreshKey by remember { mutableIntStateOf(0) }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                setupRefreshKey++
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { setupRefreshKey++ }
 
-    val hasActive = uiState.schedulerStatus == SchedulerDisplayStatus.Active
+    val hasActive = uiState.activePreference != null && uiState.schedulerStatus != SchedulerDisplayStatus.Stopped
     val showHistory = uiState.timeline.isNotEmpty() || hasActive
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -131,6 +151,7 @@ fun DiscoverySection(viewModel: JobsViewModel) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
+                        .imePadding()
                         .verticalScroll(scrollState)
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -150,15 +171,29 @@ fun DiscoverySection(viewModel: JobsViewModel) {
                         )
                     }
 
-                    if (hasActive) {
-                        ActiveSchedulerCard(
-                            viewModel = viewModel,
-                            uiState = uiState,
-                            formState = formState,
+                    if (uiState.saveFlowSteps.isNotEmpty()) {
+                        SaveFlowStatusCard(steps = uiState.saveFlowSteps)
+                    }
+
+                    if (BuildConfig.DEBUG) {
+                        SchedulerDiagnosticsCard(
+                            diagnostics = uiState.diagnostics,
+                            onPing = { viewModel.testBackendPing() },
+                            onSetupEmail = { viewModel.sendSetupTestEmail() },
+                            onRunNow = { viewModel.runSchedulerNow() },
+                            onZeroJobEmail = { viewModel.sendZeroJobTestEmail() },
+                            onVerifyDevice = { viewModel.verifyActiveDeviceDiagnostic() },
                         )
                     }
 
                     val isOtherDeviceActive = uiState.activeDeviceInfo.otherDeviceActive
+
+                    if (hasActive && !isOtherDeviceActive) {
+                        ActiveSchedulerCard(
+                            viewModel = viewModel,
+                            uiState = uiState,
+                        )
+                    }
 
                     if (isOtherDeviceActive) {
                         OtherDeviceBanner(
@@ -167,6 +202,17 @@ fun DiscoverySection(viewModel: JobsViewModel) {
                             lastSeenAt = uiState.activeDeviceInfo.otherDeviceLastSeenAt,
                             intervalMinutes = uiState.activeDeviceInfo.otherDeviceIntervalMinutes,
                             lastJobEmailAt = uiState.activeDeviceInfo.otherDeviceLastJobEmailAt,
+                            role = uiState.activeDeviceInfo.role,
+                            location = uiState.activeDeviceInfo.location,
+                            experience = uiState.activeDeviceInfo.experience,
+                            skills = uiState.activeDeviceInfo.skills,
+                            company = uiState.activeDeviceInfo.company,
+                            datePosted = uiState.activeDeviceInfo.datePosted,
+                            remote = uiState.activeDeviceInfo.remote,
+                            salaryMin = uiState.activeDeviceInfo.salaryMin,
+                            salaryMax = uiState.activeDeviceInfo.salaryMax,
+                            lastRunAt = uiState.activeDeviceInfo.lastRunAt,
+                            nextApproxRunAt = uiState.activeDeviceInfo.nextApproxRunAt,
                             dateFormat = viewModel.dateFormat,
                             onTakeover = { viewModel.takeoverDevice() },
                         )
@@ -177,8 +223,11 @@ fun DiscoverySection(viewModel: JobsViewModel) {
                             formState = formState,
                             onFormChange = { transform -> viewModel.updateForm(transform) },
                             isSaving = uiState.isSaving,
-                            onSave = {
-                                if (!JobAlertReliabilityEngine.isSetupSeen(context)) {
+                    onSave = {
+                                if (uiState.isSaving || pendingSetupSave) {
+                                    Log.w("DiscoverySection", "save already in progress, ignoring duplicate click")
+                                } else if (!JobAlertReliabilityEngine.isSetupSeen(context)) {
+                                    Log.i("DiscoverySection", "setup sheet shown — pendingSetupSave=true")
                                     scope.launch {
                                         val status = JobAlertReliabilityEngine.getReliabilityStatus(
                                             context, uiState.schedulerState
@@ -189,19 +238,21 @@ fun DiscoverySection(viewModel: JobsViewModel) {
                                         showReliabilitySetup = true
                                     }
                                 } else {
+                                    Log.i("DiscoverySection", "setup already seen — saving directly")
                                     viewModel.savePreference()
                                 }
                             },
                         )
                     }
 
-                    if (uiState.schedulerStatus == SchedulerDisplayStatus.Active && !isOtherDeviceActive) {
+                    if (hasActive && !isOtherDeviceActive) {
                         val reliabilityStatus = remember(setupRefreshKey, uiState.schedulerState) {
                             JobAlertReliabilityEngine.getReliabilityStatus(context, uiState.schedulerState)
                         }
                         ReliabilityStatusChip(
                             status = reliabilityStatus,
                             onClick = {
+                                Log.i("DiscoverySection", "reliability setup opened from status chip")
                                 scope.launch {
                                     val status = JobAlertReliabilityEngine.getReliabilityStatus(
                                         context, uiState.schedulerState
@@ -212,7 +263,6 @@ fun DiscoverySection(viewModel: JobsViewModel) {
                                 }
                             },
                         )
-
                     }
 
                     if (showHistory) {
@@ -249,24 +299,42 @@ fun DiscoverySection(viewModel: JobsViewModel) {
             )
         }
 
+        LaunchedEffect(setupRefreshKey) {
+            if (showReliabilitySetup) {
+                val freshStatus = JobAlertReliabilityEngine.getReliabilityStatus(
+                    context, uiState.schedulerState
+                )
+                setupChecklistItems = freshStatus.items
+                setupReliabilityStatus = freshStatus
+            }
+        }
+
         if (showReliabilitySetup) {
             ReliabilitySetupSheet(
                 items = setupChecklistItems,
-                onUseLimitedReliability = {
+                onContinueAndStart = {
+                    Log.i("DiscoverySection", "setup continued — marking setupSeen=true")
                     JobAlertReliabilityEngine.markSetupSeen(context)
                     JobAlertReliabilityEngine.acknowledgeLimitedReliability(context)
                     showReliabilitySetup = false
                     if (pendingSetupSave) {
                         pendingSetupSave = false
+                        Log.i("DiscoverySection", "scheduler save resumed after setup")
                         viewModel.savePreference()
                     }
                 },
                 onCancel = {
+                    Log.i("DiscoverySection", "setup cancelled — marking setupSeen, clearing pendingSetupSave")
+                    JobAlertReliabilityEngine.markSetupSeen(context)
                     showReliabilitySetup = false
                     pendingSetupSave = false
                 },
                 onOpenSettings = { intent ->
-                    try { context.startActivity(intent) } catch (_: Exception) {}
+                    try {
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        Log.w("DiscoverySection", "Unable to open reliability settings: ${e.message}", e)
+                    }
                 },
                 onRequestPermission = { permission ->
                     notificationPermissionLauncher.launch(permission)
@@ -326,7 +394,6 @@ private fun LoadingView() {
 private fun ActiveSchedulerCard(
     viewModel: JobsViewModel,
     uiState: JobsUiState,
-    formState: FormState,
 ) {
     val pref = uiState.activePreference
     val isThisDevice = uiState.activeDeviceInfo.currentDeviceActive
@@ -347,7 +414,7 @@ private fun ActiveSchedulerCard(
                     fontWeight = FontWeight.Bold,
                 )
                 Spacer(Modifier.weight(1f))
-                StatusPill(SchedulerDisplayStatus.Active)
+                StatusPill(uiState.schedulerStatus)
             }
 
             Spacer(Modifier.height(14.dp))
@@ -356,6 +423,10 @@ private fun ActiveSchedulerCard(
                 DetailRow("Role", pref.role, Icons.Default.Search)
                 DetailRow("Location", pref.location, Icons.Default.Info)
                 DetailRow("Interval", viewModel.intervalDisplayLabel(pref.intervalMinutes), Icons.Default.AccessTime)
+            }
+
+            pref?.lastRunAt?.let { lastRun ->
+                DetailRow("Last run", viewModel.formatTs(lastRun), Icons.Default.History)
             }
 
             uiState.schedulerState?.nextScheduledRunAt?.let { nextRun ->
@@ -376,6 +447,16 @@ private fun ActiveSchedulerCard(
                 Icons.Default.Devices,
             )
 
+            val backendWarning = uiState.schedulerStatus == SchedulerDisplayStatus.BackendUnreachable
+            if (backendWarning) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Backend connection is unavailable. Saved settings remain on this device, but scheduled emails will not run until backend activation is restored.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = FcAmber,
+                )
+            }
+
             if (uiState.schedulerState?.lastError != null) {
                 Spacer(Modifier.height(6.dp))
                 HorizontalDivider()
@@ -384,6 +465,49 @@ private fun ActiveSchedulerCard(
                     "Last error: ${uiState.schedulerState.lastError}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
+                )
+            }
+
+            if (pref != null && !pref.setupConfirmationSent) {
+                Spacer(Modifier.height(6.dp))
+                HorizontalDivider()
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    if (pref.setupConfirmationError.isNullOrBlank()) {
+                        "Setup email has not been sent yet."
+                    } else {
+                        "Setup email failed: ${pref.setupConfirmationError}"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                if (!pref.setupConfirmationErrorCode.isNullOrBlank()) {
+                    Text(
+                        "Error code: ${pref.setupConfirmationErrorCode}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                FilledTonalButton(
+                    onClick = { viewModel.retrySetupConfirmationEmail() },
+                    enabled = !uiState.isRetryingSetupEmail,
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    if (uiState.isRetryingSetupEmail) {
+                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.Default.Refresh, null, Modifier.size(16.dp))
+                    }
+                    Spacer(Modifier.width(6.dp))
+                    Text("Retry setup email", fontWeight = FontWeight.SemiBold)
+                }
+            } else if (pref?.setupConfirmationSent == true) {
+                DetailRow(
+                    "Setup email",
+                    pref.setupConfirmationSentAt?.let { viewModel.formatTs(it) } ?: "Sent",
+                    Icons.Default.CheckCircle,
                 )
             }
 
@@ -410,6 +534,17 @@ private fun OtherDeviceBanner(
     lastSeenAt: String?,
     intervalMinutes: Int?,
     lastJobEmailAt: String?,
+    role: String?,
+    location: String?,
+    experience: String?,
+    skills: String?,
+    company: String?,
+    datePosted: String?,
+    remote: Boolean?,
+    salaryMin: Long?,
+    salaryMax: Long?,
+    lastRunAt: String?,
+    nextApproxRunAt: String?,
     dateFormat: java.text.SimpleDateFormat,
     onTakeover: () -> Unit,
 ) {
@@ -437,10 +572,26 @@ private fun OtherDeviceBanner(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(10.dp))
-            intervalMinutes?.let { DetailRow("Interval", com.fundocareer.app.core.jobs.intervalDisplayLabel(it.toLong())) }
+            role?.let { DetailRow("Role", it, Icons.Default.Search) }
+            location?.let { DetailRow("Location", it, Icons.Default.Info) }
+            experience?.let { DetailRow("Experience", it) }
+            skills?.let { DetailRow("Skills/keywords", it) }
+            company?.let { DetailRow("Company", it) }
+            datePosted?.let { DetailRow("Date posted", it) }
+            remote?.let { DetailRow("Remote", if (it) "Remote only" else "Any/on-site") }
+            val salary = when {
+                salaryMin != null && salaryMax != null -> "$salaryMin - $salaryMax"
+                salaryMin != null -> "$salaryMin+"
+                salaryMax != null -> "Up to $salaryMax"
+                else -> null
+            }
+            salary?.let { DetailRow("Salary", it) }
+            intervalMinutes?.let { DetailRow("Interval", intervalDisplayLabel(it.toLong()), Icons.Default.AccessTime) }
             activatedAt?.let { DetailRow("Activated", com.fundocareer.app.core.jobs.formatIsoDate(it, dateFormat)) }
             lastSeenAt?.let { DetailRow("Last seen", com.fundocareer.app.core.jobs.formatIsoDate(it, dateFormat)) }
+            lastRunAt?.let { DetailRow("Last run", com.fundocareer.app.core.jobs.formatIsoDate(it, dateFormat)) }
             lastJobEmailAt?.let { DetailRow("Last email", com.fundocareer.app.core.jobs.formatIsoDate(it, dateFormat)) }
+            nextApproxRunAt?.let { DetailRow("Next run approx.", com.fundocareer.app.core.jobs.formatIsoDate(it, dateFormat)) }
             Spacer(Modifier.height(12.dp))
             Button(
                 onClick = onTakeover,
@@ -450,7 +601,7 @@ private fun OtherDeviceBanner(
             ) {
                 Icon(Icons.Default.Refresh, null, Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Use This Device Instead", fontWeight = FontWeight.SemiBold)
+                Text("Take over scheduler on this device", fontWeight = FontWeight.SemiBold)
             }
         }
     }
@@ -471,7 +622,7 @@ private fun SchedulerForm(
         120L to "2 hours",
         360L to "6 hours",
         720L to "12 hours",
-        1440L to "24 hours",
+        1440L to "Daily",
     )
 
     SectionHeader("Search Criteria", Icons.Default.Search)
@@ -607,6 +758,10 @@ private fun StatusPill(status: SchedulerDisplayStatus) {
     val (bg, fg, label) = when (status) {
         SchedulerDisplayStatus.Active -> Triple(FcGreenLight, FcGreen, "Active")
         SchedulerDisplayStatus.Paused -> Triple(FcAmberLight, FcAmber, "Paused")
+        SchedulerDisplayStatus.WaitingForNextRun -> Triple(FcGreenLight, FcGreen, "Waiting for next run")
+        SchedulerDisplayStatus.BackendUnreachable -> Triple(FcAmberLight, FcAmber, "Backend unreachable")
+        SchedulerDisplayStatus.EmailFailed -> Triple(FcRedLight, FcRed, "Email failed")
+        SchedulerDisplayStatus.OtherDeviceActive -> Triple(FcAmberLight, FcAmber, "Another device active")
         SchedulerDisplayStatus.Stopped -> Triple(FcRedLight, FcRed, "Stopped")
         SchedulerDisplayStatus.Error -> Triple(FcRedLight, FcRed, "Error")
         SchedulerDisplayStatus.Loading -> Triple(FcSlate200, FcSlate500, "...")
@@ -622,13 +777,81 @@ private fun StatusPill(status: SchedulerDisplayStatus) {
 }
 
 @Composable
+private fun SchedulerDiagnosticsCard(
+    diagnostics: SchedulerDiagnosticsState,
+    onPing: () -> Unit,
+    onSetupEmail: () -> Unit,
+    onRunNow: () -> Unit,
+    onZeroJobEmail: () -> Unit,
+    onVerifyDevice: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    ) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Info, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(8.dp))
+                Text("Developer diagnostics", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.weight(1f))
+                if (diagnostics.busy) {
+                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                }
+            }
+            DetailRow("API base URL", diagnostics.apiBaseUrl)
+            DetailRow("Logged-in email", diagnostics.loggedInEmail.ifBlank { "Unknown" })
+            DetailRow("Backend ping", diagnostics.backendPingStatus)
+            DetailRow("Local scheduler", diagnostics.localSchedulerState)
+            DetailRow("Backend device", diagnostics.activeDeviceBackendStatus)
+            DetailRow("Last worker run", diagnostics.lastWorkerRunTime)
+            DetailRow("Last worker result", diagnostics.lastWorkerResult)
+            DetailRow("Last email attempt", diagnostics.lastEmailAttempt)
+            diagnostics.lastErrorCode?.let { DetailRow("Last error code", it) }
+            diagnostics.lastAction?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    FilledTonalButton(onClick = onPing, enabled = !diagnostics.busy, modifier = Modifier.weight(1f)) {
+                        Text("Test ping", fontSize = 12.sp)
+                    }
+                    FilledTonalButton(onClick = onVerifyDevice, enabled = !diagnostics.busy, modifier = Modifier.weight(1f)) {
+                        Text("Verify device", fontSize = 12.sp)
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(onClick = onRunNow, enabled = !diagnostics.busy, modifier = Modifier.weight(1f)) {
+                        Text("Run now", fontSize = 12.sp)
+                    }
+                    OutlinedButton(onClick = onSetupEmail, enabled = !diagnostics.busy, modifier = Modifier.weight(1f)) {
+                        Text("Setup email", fontSize = 12.sp)
+                    }
+                }
+                OutlinedButton(onClick = onZeroJobEmail, enabled = !diagnostics.busy, modifier = Modifier.fillMaxWidth()) {
+                    Text("Send zero-job test email", fontSize = 12.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun DetailRow(label: String, value: String, icon: ImageVector? = null) {
     Row(
         Modifier.fillMaxWidth().padding(vertical = 3.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             if (icon != null) {
                 Icon(icon, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.width(6.dp))
@@ -639,11 +862,14 @@ private fun DetailRow(label: String, value: String, icon: ImageVector? = null) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        Spacer(Modifier.width(12.dp))
         Text(
             value,
+            modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.End,
         )
     }
 }
@@ -902,14 +1128,63 @@ private fun ResultCard(message: String, onDismiss: () -> Unit) {
 }
 
 @Composable
+private fun SaveFlowStatusCard(steps: List<SaveFlowStep>) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                "Scheduler save status",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+            )
+            steps.forEach { step ->
+                val (icon, tint, label) = when (step.status) {
+                    SaveFlowStatus.Pending -> Triple(Icons.Default.Info, MaterialTheme.colorScheme.onSurfaceVariant, "Pending")
+                    SaveFlowStatus.Running -> Triple(Icons.Default.Refresh, MaterialTheme.colorScheme.primary, "Running")
+                    SaveFlowStatus.Done -> Triple(Icons.Default.CheckCircle, FcGreen, "Done")
+                    SaveFlowStatus.Failed -> Triple(Icons.Default.Warning, MaterialTheme.colorScheme.error, "Failed")
+                    SaveFlowStatus.Skipped -> Triple(Icons.Default.Info, FcAmber, "Skipped")
+                }
+                Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth()) {
+                    Icon(icon, null, Modifier.size(18.dp), tint = tint)
+                    Spacer(Modifier.width(8.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            step.phase.label,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        val detail = buildString {
+                            append(label)
+                            if (!step.errorCode.isNullOrBlank()) append(" (${step.errorCode})")
+                            if (!step.detail.isNullOrBlank()) append(": ${step.detail}")
+                        }
+                        Text(
+                            detail,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (step.status == SaveFlowStatus.Failed) MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun ReliabilityStatusChip(
     status: JobAlertReliabilityStatus,
     onClick: () -> Unit,
 ) {
     val (label, bgColor, fgColor, icon) = when (status.overall) {
         OverallReliability.OPTIMIZED -> listOf("Job alerts optimized", FcGreenLight, FcGreen, Icons.Default.CheckCircle)
-        OverallReliability.LIMITED -> listOf("Improve reliability", FcAmberLight, FcAmber, Icons.Default.Info)
-        OverallReliability.NEEDS_SETUP -> listOf("Complete reliability setup", FcAmberLight, FcAmber, Icons.Default.Warning)
+        OverallReliability.LIMITED -> listOf("Optimize reliability", FcAmberLight, FcAmber, Icons.Default.Info)
+        else -> listOf("Optimize reliability", FcAmberLight, FcAmber, Icons.Default.Info)
     }
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
@@ -936,7 +1211,7 @@ private fun ReliabilityStatusChip(
 @Composable
 private fun ReliabilitySetupSheet(
     items: List<ReliabilityChecklistItem>,
-    onUseLimitedReliability: () -> Unit,
+    onContinueAndStart: () -> Unit,
     onCancel: () -> Unit,
     onOpenSettings: (android.content.Intent) -> Unit,
     onRequestPermission: (String) -> Unit,
@@ -1005,11 +1280,11 @@ private fun ReliabilitySetupSheet(
             Spacer(Modifier.height(20.dp))
 
             Button(
-                onClick = onUseLimitedReliability,
+                onClick = onContinueAndStart,
                 modifier = Modifier.fillMaxWidth().height(48.dp),
                 shape = MaterialTheme.shapes.medium,
             ) {
-                Text("Continue with limited reliability", fontWeight = FontWeight.SemiBold)
+                Text("Continue & Start Scheduler", fontWeight = FontWeight.SemiBold)
             }
 
             Spacer(Modifier.height(8.dp))
@@ -1049,7 +1324,7 @@ private fun ReliabilitySetupItemRow(
                     .background(FcGreenLight)
                     .padding(horizontal = 6.dp, vertical = 2.dp)
             ) {
-                Text("Optimized", fontSize = 10.sp, color = FcGreen, fontWeight = FontWeight.SemiBold)
+                Text("Ready", fontSize = 10.sp, color = FcGreen, fontWeight = FontWeight.SemiBold)
             }
         } else if (required) {
             Box(
@@ -1058,7 +1333,7 @@ private fun ReliabilitySetupItemRow(
                     .background(FcRedLight)
                     .padding(horizontal = 6.dp, vertical = 2.dp)
             ) {
-                Text("Action needed", fontSize = 10.sp, color = FcRed, fontWeight = FontWeight.SemiBold)
+                Text("Needs action", fontSize = 10.sp, color = FcRed, fontWeight = FontWeight.SemiBold)
             }
         } else {
             Box(
@@ -1067,7 +1342,7 @@ private fun ReliabilitySetupItemRow(
                     .background(FcAmberLight)
                     .padding(horizontal = 6.dp, vertical = 2.dp)
             ) {
-                Text("Limited reliability", fontSize = 10.sp, color = FcAmber, fontWeight = FontWeight.SemiBold)
+                Text("Recommended", fontSize = 10.sp, color = FcAmber, fontWeight = FontWeight.SemiBold)
             }
         }
     }

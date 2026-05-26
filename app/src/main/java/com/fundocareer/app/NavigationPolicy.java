@@ -11,14 +11,11 @@ public class NavigationPolicy {
 
     private static final String TAG = "FundoCareer-NavPolicy";
 
-    private static final Set<String> PROTECTED_ROUTES = new HashSet<>(Arrays.asList(
-            "/profile",
-            "/resumes",
-            "/ats-checker",
+    private static final String[] INTERVIEW_ROUTES = {
             "/mock-interview",
-            "/job-application",
-            "/jobpage"
-    ));
+            "/interview",
+            "/guided-journey",
+    };
 
     private static final Set<String> PUBLIC_ASSET_EXTS = new HashSet<>(Arrays.asList(
             ".css", ".js", ".json", ".map", ".ts", ".tsx", ".jsx",
@@ -76,12 +73,6 @@ public class NavigationPolicy {
         return false;
     }
 
-    public boolean isProtectedRoute(String url) {
-        if (url == null) return false;
-        String path = extractPath(url);
-        return PROTECTED_ROUTES.contains(path);
-    }
-
     public boolean shouldShowLoginGate(String url) {
         return shouldShowLoginGate(url, isUserLoggedIn());
     }
@@ -91,8 +82,17 @@ public class NavigationPolicy {
         if (isHomeRoute(url)) return false;
         if (isPublicAsset(url)) return false;
         if (isAuthRoute(url)) return false;
+        if (isExcludedRoute(url)) return false;
         if (!url.startsWith("http:") && !url.startsWith("https:")) return false;
         return true;
+    }
+
+    private boolean isExcludedRoute(String url) {
+        String path = extractPath(url);
+        for (String route : INTERVIEW_ROUTES) {
+            if (route.equals(path)) return true;
+        }
+        return false;
     }
 
     public String getPostLoginRoute() {

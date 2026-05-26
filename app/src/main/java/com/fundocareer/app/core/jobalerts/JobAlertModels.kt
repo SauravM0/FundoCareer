@@ -9,7 +9,9 @@ data class JobSearchCriteria(
     val salaryMax: Long? = null,
     val skills: List<String> = emptyList(),
     val company: String? = null,
-    val datePosted: String? = null
+    val datePosted: String? = null,
+    val jobTypes: List<String> = emptyList(),
+    val activelyHiring: Boolean = false
 )
 
 object JobAlertDefaults {
@@ -18,11 +20,12 @@ object JobAlertDefaults {
     const val DEFAULT_INTERVAL_MINUTES = 60L
     const val DEFAULT_REPORT_FORMAT = "html"
     const val DEFAULT_WORK_NAME = "fundocareer_job_alerts"
-    const val DEFAULT_PAGE_SIZE = 25
+    const val DEFAULT_PAGE_SIZE = 50
     const val MAX_RESULTS = 50
 }
 
 data class ParsedJob(
+    val jobId: String? = null,
     val title: String,
     val company: String,
     val location: String,

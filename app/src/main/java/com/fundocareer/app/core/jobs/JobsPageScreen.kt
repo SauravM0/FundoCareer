@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -25,14 +26,17 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults.SecondaryIndicator
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -48,6 +52,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import android.util.Log
 import com.fundocareer.app.core.jobalerts.OverallReliability
 import com.fundocareer.app.core.jobalerts.ui.theme.FcAmber
 import com.fundocareer.app.core.jobalerts.ui.theme.FcAmberLight
@@ -68,6 +73,10 @@ fun JobsPageScreen(onBack: () -> Unit) {
     val viewModel: JobsViewModel = viewModel()
     val reliabilityStatus by viewModel.reliabilityStatus.collectAsState()
 
+    LaunchedEffect(pagerState.currentPage) {
+        Log.i("JobsPageScreen", "scheduler tab changed: ${TABS[pagerState.currentPage]}")
+    }
+
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -85,6 +94,11 @@ fun JobsPageScreen(onBack: () -> Unit) {
         topBar = {
             TopAppBar(
                 title = { Text("Jobs", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                },
                 actions = {
                     reliabilityStatus?.let { status ->
                         val (label, bgColor, fgColor) = when (status.overall) {
@@ -118,7 +132,7 @@ fun JobsPageScreen(onBack: () -> Unit) {
             )
         }
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
+        Column(Modifier.fillMaxSize().padding(padding).imePadding()) {
             Text(
                 "Find fresh LinkedIn jobs faster and apply early.",
                 style = MaterialTheme.typography.bodyMedium,

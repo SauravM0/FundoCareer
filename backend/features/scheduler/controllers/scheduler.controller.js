@@ -12,6 +12,31 @@ function getUserEmail(req) {
   return req.user?.email || null;
 }
 
+function activeDevicePayload(device) {
+  if (!device) return null;
+  const preferences = device.preferencesJson ? safeJsonParse(device.preferencesJson) : null;
+  const schedulerState = device.schedulerStateJson ? safeJsonParse(device.schedulerStateJson) : null;
+  const nextApproxRunAt = schedulerState?.nextScheduledRunAt || schedulerState?.nextApproxRunAt || preferences?.nextScheduledRunAt || null;
+  const lastRunAt = schedulerState?.lastRunAt || schedulerState?.lastSuccessfulRunAt || null;
+  const intervalMinutes = device.intervalMinutes || preferences?.intervalMinutes || schedulerState?.intervalMinutes || null;
+  return {
+    deviceId: device.deviceId,
+    deviceName: device.deviceName,
+    devicePlatform: device.deviceType,
+    activeDeviceLastSeenAt: device.activeDeviceLastSeenAt?.toISOString() || null,
+    activatedAt: device.activatedAt?.toISOString() || null,
+    stoppedAt: device.stoppedAt?.toISOString() || null,
+    lastSetupEmailAt: device.lastSetupEmailAt?.toISOString() || null,
+    lastJobEmailAt: device.lastJobEmailAt?.toISOString() || null,
+    intervalMinutes,
+    schedulerPreferenceId: schedulerState?.preferenceId || preferences?.preferenceId || null,
+    preferences,
+    schedulerState,
+    lastRunAt,
+    nextApproxRunAt,
+  };
+}
+
 // ================================================================
 // GET EMAIL HISTORY (positive-only)
 // GET /api/scheduler/history
@@ -66,6 +91,29 @@ export async function acquireLock(req, res) {
       return res.status(400).json({ success: false, message: 'Missing required fields: preferenceSetId, deviceId, deviceType.' });
     }
 
+    const activeDevice = await prisma.schedulerDeviceState.findFirst({
+      where: { userEmail, isActiveDevice: true },
+    });
+    if (!activeDevice) {
+      console.log(`[Lock] Rejected: no active device for user=${userEmail}, requester=${maskDeviceId(deviceId)}, preferenceSet=${preferenceSetId}`);
+      return res.json({
+        success: true,
+        data: { granted: false, reason: 'no_active_device' },
+      });
+    }
+    if (activeDevice.deviceId !== deviceId) {
+      console.log(`[Lock] Rejected: requester=${maskDeviceId(deviceId)} is not active device=${maskDeviceId(activeDevice.deviceId)}, preferenceSet=${preferenceSetId}`);
+      return res.json({
+        success: true,
+        data: {
+          granted: false,
+          reason: 'device_not_active',
+          heldBy: activeDevice.deviceId,
+          heldByDeviceType: activeDevice.deviceType,
+        },
+      });
+    }
+
     const lockKey = { userEmail, preferenceSetId };
     const existingLock = await prisma.schedulerLock.findUnique({ where: { userEmail_preferenceSetId: lockKey } });
 
@@ -77,6 +125,7 @@ export async function acquireLock(req, res) {
           success: true,
           data: {
             granted: false,
+            reason: 'lock_held_by_other_device',
             heldBy: existingLock.deviceId,
             heldByDeviceType: existingLock.deviceType,
             acquiredAt: existingLock.acquiredAt.toISOString(),
@@ -494,18 +543,7 @@ export async function getActiveDevice(req, res) {
     return res.json({
       success: true,
       activeDevice: {
-        deviceId: activeDevice.deviceId,
-        deviceName: activeDevice.deviceName,
-        devicePlatform: activeDevice.deviceType,
-        activeDeviceLastSeenAt: activeDevice.activeDeviceLastSeenAt?.toISOString() || null,
-        activatedAt: activeDevice.activatedAt?.toISOString() || null,
-        stoppedAt: activeDevice.stoppedAt?.toISOString() || null,
-        lastSetupEmailAt: activeDevice.lastSetupEmailAt?.toISOString() || null,
-        lastJobEmailAt: activeDevice.lastJobEmailAt?.toISOString() || null,
-        intervalMinutes: activeDevice.intervalMinutes || null,
-        schedulerPreferenceId: activeDevice.schedulerStateJson
-          ? safeJsonParse(activeDevice.schedulerStateJson)?.preferenceId || null
-          : null,
+        ...activeDevicePayload(activeDevice),
       },
       isCurrentDeviceActive: deviceId ? activeDevice.deviceId === deviceId : false,
     });
@@ -526,18 +564,33 @@ export async function activateDevice(req, res) {
       return res.status(401).json({ success: false, message: 'User email not found in token.' });
     }
 
-    const { deviceId, deviceName, devicePlatform, schedulerPreferenceId, intervalMinutes } = req.body;
+    const { deviceId, deviceName, devicePlatform, schedulerPreferenceId, intervalMinutes, takeover } = req.body;
     if (!deviceId || !devicePlatform) {
       return res.status(400).json({ success: false, message: 'Missing required fields: deviceId, devicePlatform.' });
     }
 
     const nowTime = now();
+    const existingActiveDevice = await prisma.schedulerDeviceState.findFirst({
+      where: { userEmail, isActiveDevice: true },
+    });
+    if (existingActiveDevice && existingActiveDevice.deviceId !== deviceId && takeover !== true) {
+      console.log(`[ActiveDevice] Activation rejected: user=${userEmail}, requester=${maskDeviceId(deviceId)}, active=${maskDeviceId(existingActiveDevice.deviceId)}`);
+      return res.status(409).json({
+        success: false,
+        errorCode: 'ACTIVE_DEVICE_EXISTS',
+        message: 'Another device is already managing this scheduler.',
+        activeDevice: activeDevicePayload(existingActiveDevice),
+        isCurrentDeviceActive: false,
+      });
+    }
 
     await prisma.$transaction(async (tx) => {
-      await tx.schedulerDeviceState.updateMany({
-        where: { userEmail, isActiveDevice: true },
-        data: { isActiveDevice: false },
-      });
+      if (takeover === true) {
+        await tx.schedulerDeviceState.updateMany({
+          where: { userEmail, isActiveDevice: true, NOT: { deviceId } },
+          data: { isActiveDevice: false, stoppedAt: nowTime },
+        });
+      }
 
       await tx.schedulerDeviceState.upsert({
         where: { userEmail_deviceId: { userEmail, deviceId } },
@@ -560,10 +613,8 @@ export async function activateDevice(req, res) {
           isActiveDevice: true,
           activeDeviceLastSeenAt: nowTime,
           activatedAt: nowTime,
+          stoppedAt: null,
           intervalMinutes: intervalMinutes || undefined,
-          schedulerStateJson: schedulerPreferenceId
-            ? JSON.stringify({ preferenceId: schedulerPreferenceId })
-            : undefined,
         },
       });
     });
@@ -572,18 +623,11 @@ export async function activateDevice(req, res) {
       where: { userEmail_deviceId: { userEmail, deviceId } },
     });
 
-    console.log(`[ActiveDevice] Activated: user=${userEmail}, device=${maskDeviceId(deviceId)}, platform=${devicePlatform}`);
+    console.log(`[ActiveDevice] ${takeover === true ? 'Takeover' : 'Activated'}: user=${userEmail}, device=${maskDeviceId(deviceId)}, platform=${devicePlatform}`);
     return res.json({
       success: true,
-      activeDevice: {
-        deviceId: activated.deviceId,
-        deviceName: activated.deviceName,
-        devicePlatform: activated.deviceType,
-        activeDeviceLastSeenAt: activated.activeDeviceLastSeenAt?.toISOString() || null,
-        activatedAt: activated.activatedAt?.toISOString() || null,
-        schedulerPreferenceId,
-        intervalMinutes: activated.intervalMinutes || null,
-      },
+      activeDevice: activeDevicePayload(activated),
+      isCurrentDeviceActive: true,
     });
   } catch (err) {
     console.error('[ActiveDevice] activateDevice error:', err.message);
@@ -865,5 +909,10 @@ export async function getUserTimeline(req, res) {
 }
 
 function safeJsonParse(str) {
-  try { return JSON.parse(str); } catch { return null; }
+  try { 
+    return JSON.parse(str); 
+  } catch (error) { 
+    console.warn(`[Scheduler] Failed to parse JSON: ${error.message}`);
+    return null; 
+  }
 }

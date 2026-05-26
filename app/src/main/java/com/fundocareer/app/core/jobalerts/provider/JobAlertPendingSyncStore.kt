@@ -42,6 +42,9 @@ suspend fun retryPendingSync(
                 if (result.success) {
                     Log.i(TAG, "Pending activation succeeded for $preferenceId")
                     store.clearAll()
+                } else if (result.errorCode == "ACTIVE_DEVICE_EXISTS") {
+                    Log.w(TAG, "Pending activation blocked by another active device for $preferenceId; clearing pending activation")
+                    store.clearAll()
                 } else {
                     Log.w(TAG, "Pending activation failed for $preferenceId: ${result.error}")
                     store.incrementRetry()

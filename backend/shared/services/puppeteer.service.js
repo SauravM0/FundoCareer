@@ -117,7 +117,7 @@ export const generatePdfFromHtml = async (htmlContent, options = {}) => {
   } catch (error) {
     console.error("[Puppeteer] PDF generation failed:", error.message);
     if (browserInstance) {
-      try { await browserInstance.close(); } catch (e) { }
+      try { await browserInstance.close(); } catch (e) { console.error("[Puppeteer] Failed to close browser during error:", e); }
       browserInstance = null;
     }
     throw error;
@@ -130,7 +130,11 @@ export const generatePdfFromHtml = async (htmlContent, options = {}) => {
 
 export const closeBrowser = async () => {
   if (browserInstance) {
-    await browserInstance.close();
+    try {
+      await browserInstance.close();
+    } catch (error) {
+      console.error(`[Puppeteer] Failed to close browser: ${error.message}`);
+    }
     browserInstance = null;
   }
 };

@@ -17,12 +17,27 @@ class JobAlertApiClient(
     companion object {
         private const val TAG = "JobAlertApiClient"
         private const val TIMEOUT = 15L
+        private var routingLogged = false
 
         fun defaultClient() = OkHttpClient.Builder()
             .connectTimeout(TIMEOUT, TimeUnit.SECONDS)
             .readTimeout(TIMEOUT, TimeUnit.SECONDS)
             .writeTimeout(TIMEOUT, TimeUnit.SECONDS)
             .build()
+    }
+
+    init {
+        if (!routingLogged) {
+            routingLogged = true
+            Log.i(TAG, "========================================")
+            Log.i(TAG, "[Native Scheduler] API Base URL: ${BuildConfig.API_BASE_URL}")
+            if (BuildConfig.FRONTEND_URL == BuildConfig.API_BASE_URL) {
+                Log.i(TAG, "[Native Scheduler] Routing: PRODUCTION (same as WebView)")
+            } else {
+                Log.i(TAG, "[Native Scheduler] Routing: LOCAL BACKEND (separate from WebView which uses PRODUCTION)")
+            }
+            Log.i(TAG, "========================================")
+        }
     }
 
     private val baseUrl: String get() = BuildConfig.API_BASE_URL
@@ -32,6 +47,7 @@ class JobAlertApiClient(
         val granted: Boolean,
         val heldBy: String? = null,
         val heldByDeviceType: String? = null,
+        val reason: String? = null,
         val expiresAt: String? = null,
         val error: String? = null
     )
@@ -43,6 +59,14 @@ class JobAlertApiClient(
         val jobEmailSent: Boolean = false,
         val jobsSent: Int = 0,
         val pdfAttached: Boolean = false,
+        val errorCode: String? = null,
+        val error: String? = null
+    )
+
+    data class PingResult(
+        val success: Boolean,
+        val status: String? = null,
+        val errorCode: String? = null,
         val error: String? = null
     )
 
@@ -108,6 +132,7 @@ class JobAlertApiClient(
                 granted = data?.optBoolean("granted", false) ?: false,
                 heldBy = data?.optString("heldBy", "")?.takeIf { it.isNotEmpty() },
                 heldByDeviceType = data?.optString("heldByDeviceType", "")?.takeIf { it.isNotEmpty() },
+                reason = data?.optString("reason", "")?.takeIf { it.isNotEmpty() },
                 expiresAt = data?.optString("expiresAt", "")?.takeIf { it.isNotEmpty() },
                 error = if (!json.optBoolean("success", false)) json.optString("message", "Unknown error") else null
             )
@@ -267,10 +292,12 @@ class JobAlertApiClient(
                     jobEmailSent = json.optBoolean("jobEmailSent", false),
                     jobsSent = json.optInt("jobsSent", 0),
                     pdfAttached = json.optBoolean("pdfAttached", false),
+                    errorCode = json.optString("errorCode", "").takeIf { it.isNotBlank() },
                 )
             } else {
                 EmailResult(
                     success = false,
+                    errorCode = json.optString("errorCode", "").takeIf { it.isNotBlank() },
                     error = json.optString("message", "Unknown error")
                 )
             }
@@ -305,21 +332,55 @@ class JobAlertApiClient(
                 datePosted?.let { put("datePosted", it) }
                 intervalMinutes?.let { put("intervalMinutes", it) }
             }
+            Log.i(TAG, "sendSetupConfirmationEmail: userEmail=$to, endpoint=/api/notifications/send-setup-email")
             val json = post("/api/notifications/send-setup-email", body.toString())
             if (json.optBoolean("success", false)) {
                 EmailResult(
                     success = true,
-                    setupEmailSent = json.optBoolean("setupEmailSent", false),
+                    emailSent = json.optBoolean("emailSent", false),
+                    setupEmailSent = json.optBoolean("setupEmailSent", json.optBoolean("emailSent", false)),
+                    errorCode = json.optString("errorCode", "").takeIf { it.isNotBlank() },
                 )
             } else {
                 EmailResult(
                     success = false,
+                    emailSent = json.optBoolean("emailSent", false),
+                    setupEmailSent = json.optBoolean("setupEmailSent", false),
+                    errorCode = json.optString("errorCode", "").takeIf { it.isNotBlank() },
                     error = json.optString("message", "Unknown error")
                 )
             }
         } catch (e: Exception) {
-            Log.e(TAG, "sendSetupConfirmationEmail failed", e)
-            EmailResult(success = false, error = e.message)
+            // Log detailed exception info to diagnose the exact failure
+            val causeChain = generateSequence(e.cause) { it.cause }
+                .take(5)
+                .joinToString(" → ") { "${it::class.java.simpleName}: ${it.message}" }
+            val msg = StringBuilder().apply {
+                append("sendSetupConfirmationEmail failed")
+                append(" | type=${e::class.java.name}")
+                append(" | message=${e.message}")
+                append(" | causeChain=[$causeChain]")
+                append(" | request={to=$to, preferenceId=${preferenceId.take(12)}...}")
+            }.toString()
+            Log.e(TAG, msg)
+            // Log full stacktrace separately so it's not truncated
+            Log.w(TAG, "sendSetupConfirmationEmail full stacktrace:", e)
+            EmailResult(success = false, errorCode = "NETWORK_ERROR", error = e.message)
+        }
+    }
+
+    suspend fun pingBackend(): PingResult {
+        return try {
+            val json = get("/api/health")
+            PingResult(
+                success = json.optBoolean("ok", json.optBoolean("success", false)),
+                status = json.optString("status", "").takeIf { it.isNotBlank() },
+                errorCode = json.optString("errorCode", "").takeIf { it.isNotBlank() },
+                error = json.optString("message", "").takeIf { it.isNotBlank() },
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "pingBackend failed: endpoint=/api/health", e)
+            PingResult(success = false, errorCode = "BACKEND_UNREACHABLE", error = e.message)
         }
     }
 
@@ -378,7 +439,7 @@ class JobAlertApiClient(
             if (json.optBoolean("success", false)) {
                 SyncStateResult(
                     success = true,
-                    syncedAt = data?.optString("syncedAt", null)
+                    syncedAt = data?.optString("syncedAt", "")?.takeIf { it.isNotEmpty() }
                 )
             } else {
                 SyncStateResult(
@@ -413,6 +474,33 @@ class JobAlertApiClient(
         val lastJobEmailAt: String? = null,
         val intervalMinutes: Int? = null,
         val schedulerPreferenceId: String? = null,
+        val preferences: ActiveSchedulerPreferencesDto? = null,
+        val schedulerState: ActiveSchedulerStateDto? = null,
+        val lastRunAt: String? = null,
+        val nextApproxRunAt: String? = null,
+    )
+
+    data class ActiveSchedulerPreferencesDto(
+        val preferenceId: String? = null,
+        val role: String? = null,
+        val location: String? = null,
+        val experience: String? = null,
+        val skills: String? = null,
+        val company: String? = null,
+        val datePosted: String? = null,
+        val reportFormat: String? = null,
+        val intervalMinutes: Int? = null,
+        val remote: Boolean? = null,
+        val salaryMin: Long? = null,
+        val salaryMax: Long? = null,
+    )
+
+    data class ActiveSchedulerStateDto(
+        val preferenceId: String? = null,
+        val schedulerEnabled: Boolean? = null,
+        val lastRunAt: String? = null,
+        val nextScheduledRunAt: String? = null,
+        val intervalMinutes: Int? = null,
     )
 
     data class ActiveDeviceStatusResult(
@@ -421,6 +509,7 @@ class JobAlertApiClient(
         val isCurrentDeviceActive: Boolean = false,
         val deactivated: Boolean = false,
         val reason: String? = null,
+        val errorCode: String? = null,
         val error: String? = null,
     )
 
@@ -478,6 +567,7 @@ class JobAlertApiClient(
         deviceIdentity: DeviceIdentity,
         schedulerPreferenceId: String? = null,
         intervalMinutes: Long? = null,
+        takeover: Boolean = false,
     ): ActiveDeviceStatusResult {
         return try {
             val body = JSONObject().apply {
@@ -486,13 +576,15 @@ class JobAlertApiClient(
                 put("devicePlatform", deviceIdentity.devicePlatform)
                 schedulerPreferenceId?.let { put("schedulerPreferenceId", it) }
                 intervalMinutes?.let { put("intervalMinutes", it) }
+                put("takeover", takeover)
             }
             val json = post("/api/scheduler/active-device/activate", body.toString())
             val activeDeviceJson = json.optJSONObject("activeDevice")
             ActiveDeviceStatusResult(
                 success = json.optBoolean("success", false),
                 activeDevice = activeDeviceJson?.let { parseActiveDeviceDto(it) },
-                isCurrentDeviceActive = true,
+                isCurrentDeviceActive = json.optBoolean("isCurrentDeviceActive", json.optBoolean("success", false)),
+                errorCode = json.optString("errorCode", "").takeIf { it.isNotEmpty() },
                 error = if (!json.optBoolean("success", false)) json.optString("message", "Unknown error") else null,
             )
         } catch (e: Exception) {
@@ -598,6 +690,37 @@ class JobAlertApiClient(
             lastJobEmailAt = json.optString("lastJobEmailAt", "")?.takeIf { it.isNotEmpty() },
             intervalMinutes = if (json.has("intervalMinutes") && !json.isNull("intervalMinutes")) json.optInt("intervalMinutes") else null,
             schedulerPreferenceId = json.optString("schedulerPreferenceId", "")?.takeIf { it.isNotEmpty() },
+            preferences = json.optJSONObject("preferences")?.let { parseActiveSchedulerPreferences(it) },
+            schedulerState = json.optJSONObject("schedulerState")?.let { parseActiveSchedulerState(it) },
+            lastRunAt = json.optString("lastRunAt", "").takeIf { it.isNotEmpty() },
+            nextApproxRunAt = json.optString("nextApproxRunAt", "").takeIf { it.isNotEmpty() },
+        )
+    }
+
+    private fun parseActiveSchedulerPreferences(json: JSONObject): ActiveSchedulerPreferencesDto {
+        return ActiveSchedulerPreferencesDto(
+            preferenceId = json.optString("preferenceId", "").takeIf { it.isNotEmpty() },
+            role = json.optString("role", "").takeIf { it.isNotEmpty() },
+            location = json.optString("location", "").takeIf { it.isNotEmpty() },
+            experience = json.optString("experience", "").takeIf { it.isNotEmpty() },
+            skills = json.optString("skills", "").takeIf { it.isNotEmpty() },
+            company = json.optString("company", "").takeIf { it.isNotEmpty() },
+            datePosted = json.optString("datePosted", "").takeIf { it.isNotEmpty() },
+            reportFormat = json.optString("reportFormat", "").takeIf { it.isNotEmpty() },
+            intervalMinutes = if (json.has("intervalMinutes") && !json.isNull("intervalMinutes")) json.optInt("intervalMinutes") else null,
+            remote = if (json.has("remote") && !json.isNull("remote")) json.optBoolean("remote") else null,
+            salaryMin = if (json.has("salaryMin") && !json.isNull("salaryMin")) json.optLong("salaryMin") else null,
+            salaryMax = if (json.has("salaryMax") && !json.isNull("salaryMax")) json.optLong("salaryMax") else null,
+        )
+    }
+
+    private fun parseActiveSchedulerState(json: JSONObject): ActiveSchedulerStateDto {
+        return ActiveSchedulerStateDto(
+            preferenceId = json.optString("preferenceId", "").takeIf { it.isNotEmpty() },
+            schedulerEnabled = if (json.has("schedulerEnabled") && !json.isNull("schedulerEnabled")) json.optBoolean("schedulerEnabled") else null,
+            lastRunAt = json.optString("lastRunAt", "").takeIf { it.isNotEmpty() },
+            nextScheduledRunAt = json.optString("nextScheduledRunAt", "").takeIf { it.isNotEmpty() },
+            intervalMinutes = if (json.has("intervalMinutes") && !json.isNull("intervalMinutes")) json.optInt("intervalMinutes") else null,
         )
     }
 
@@ -610,9 +733,26 @@ class JobAlertApiClient(
             .post(jsonBody.toRequestBody(jsonMediaType))
             .build()
         val response = client.newCall(request).execute()
+        val code = response.code
         val body = response.body?.string() ?: "{}"
-        Log.d(TAG, "POST $path → ${response.code}: ${body.take(300)}")
-        return JSONObject(body)
+
+        // Log non-2xx responses prominently for debugging
+        if (code !in 200..299) {
+            Log.w(TAG, "POST $path → HTTP $code (non-success). Body=${body.take(500)}")
+        } else {
+            Log.d(TAG, "POST $path → $code: ${body.take(300)}")
+        }
+
+        try {
+            val json = JSONObject(body)
+            Log.d(TAG, "post endpoint=$path http=$code errorCode=${json.optString("errorCode", "").ifBlank { "none" }}")
+            return json
+        } catch (jsonEx: org.json.JSONException) {
+            // If the response is not valid JSON, log the raw body and HTTP code clearly
+            Log.e(TAG, "POST $path → HTTP $code returned non-JSON response. Body (first 1000 chars): ${body.take(1000)}")
+            // Return empty JSON so callers don't crash
+            return JSONObject()
+        }
     }
 
     private fun get(path: String, params: Map<String, String> = emptyMap()): JSONObject {
@@ -626,7 +766,9 @@ class JobAlertApiClient(
             .addHeader("Content-Type", "application/json")
             .get()
             .build()
+        Log.i(TAG, "endpoint called: $path")
         val response = client.newCall(request).execute()
+        Log.i(TAG, "HTTP status=${response.code}, endpoint=$path")
         val body = response.body?.string() ?: "{}"
         Log.d(TAG, "GET $path → ${response.code}: ${body.take(300)}")
         return JSONObject(body)

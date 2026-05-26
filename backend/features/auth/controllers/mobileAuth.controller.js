@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { OAuth2Client } from 'google-auth-library';
 import passport from '../../../config/passport.config.js';
 import prisma from '../../../config/database.config.js';
+import { maskEmail } from '../../../shared/utils/logMasker.js';
 
 const GOOGLE_WEB_CLIENT_ID = process.env.GOOGLE_WEB_CLIENT_ID || process.env.GOOGLE_CLIENT_ID;
 const googleIdTokenClient = new OAuth2Client(GOOGLE_WEB_CLIENT_ID);
@@ -156,14 +157,14 @@ export const exchangeAndroidIdToken = async (req, res) => {
       return res.status(403).json({ success: false, code: 'GOOGLE_EMAIL_NOT_VERIFIED', message: 'Google account email is not verified.' });
     }
 
-    console.log(`[Android Token] Authenticating user: ${email}`);
+    console.log(`[Android Token] Authenticating user: ${maskEmail(email)}`);
 
     let user = await prisma.user.findFirst({
       where: { authProvider: 'google', authProviderId: googleId },
     });
 
     if (user) {
-      console.log(`[Android Token] Existing Google user found: ${user.id}`);
+      console.log(`[Android Token] Existing Google user found: ${maskEmail(user.email)}`);
       user = await prisma.user.update({
         where: { id: user.id },
         data: { name, image: photo },
@@ -171,7 +172,7 @@ export const exchangeAndroidIdToken = async (req, res) => {
     } else {
       user = await prisma.user.findUnique({ where: { email } });
       if (user) {
-        console.log(`[Android Token] Linking Google account to existing user: ${user.id}`);
+        console.log(`[Android Token] Linking Google account to existing user: ${maskEmail(user.email)}`);
         user = await prisma.user.update({
           where: { id: user.id },
           data: { authProvider: 'google', authProviderId: googleId, name, image: photo, isVerified: true },
@@ -230,7 +231,7 @@ export const exchangeAndroidIdToken = async (req, res) => {
     ]);
 
     console.log(`[Android Token] Tokens issued for user ${user.id}`);
-    console.log(`[Android Token] Login success: ${user.email}`);
+    console.log(`[Android Token] Login success: ${maskEmail(user.email)}`);
 
     return res.json({
       success: true,
@@ -247,7 +248,7 @@ export const exchangeAndroidIdToken = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error(`[Android Token] Error for user: ${email}`);
+    console.error(`[Android Token] Error for user: ${maskEmail(email)}`);
     return res.status(500).json({ success: false, code: 'SERVER_ERROR', message: 'Internal server error.' });
   }
 };

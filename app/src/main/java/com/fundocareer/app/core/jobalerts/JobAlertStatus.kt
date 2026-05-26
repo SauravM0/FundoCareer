@@ -1,12 +1,21 @@
 package com.fundocareer.app.core.jobalerts
 
 enum class SchedulerDisplayStatus {
-    Loading, Active, Paused, Stopped, Error
+    Loading,
+    Active,
+    Paused,
+    WaitingForNextRun,
+    BackendUnreachable,
+    EmailFailed,
+    OtherDeviceActive,
+    Stopped,
+    Error
 }
 
 object JobAlertStatus {
     const val SUCCESS_EMAIL_SENT = "SUCCESS_EMAIL_SENT"
     const val SUCCESS_NO_NEW_JOBS = "SUCCESS_NO_NEW_JOBS"
+    const val SKIPPED_NOT_ACTIVE_DEVICE = "SKIPPED_NOT_ACTIVE_DEVICE"
     const val SKIPPED_LOCK_HELD_BY_OTHER_DEVICE = "SKIPPED_LOCK_HELD_BY_OTHER_DEVICE"
     const val FAILED_NETWORK = "FAILED_NETWORK"
     const val FAILED_JOB_SOURCE = "FAILED_JOB_SOURCE"

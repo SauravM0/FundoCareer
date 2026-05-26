@@ -6,10 +6,12 @@ import com.fundocareer.app.core.jobalerts.JobSearchCriteria
 import com.fundocareer.app.core.jobalerts.JobSearchError
 import com.fundocareer.app.core.jobalerts.JobSearchResult
 import com.fundocareer.app.core.jobalerts.ParsedJob
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
+import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
 class LinkedInGuestJobSourceProvider(
@@ -30,16 +32,25 @@ class LinkedInGuestJobSourceProvider(
             .followRedirects(true)
             .build()
 
-        fun computeFingerprint(jobTitle: String, company: String, location: String, url: String?): String {
+        fun computeFingerprint(jobId: String?, jobTitle: String, company: String, location: String, url: String?): String {
             val tag = "$SOURCE|"
+            val id = jobId?.trim()
+            if (!id.isNullOrBlank()) {
+                return "${tag}id:$id"
+            }
             val u = url?.trim()?.lowercase()
             if (!u.isNullOrBlank()) {
-                return "${tag}url:$u"
+                return "${tag}url:${sha256(u)}"
             }
             val t = jobTitle.trim().lowercase().replace(Regex("\\s+"), " ")
             val c = company.trim().lowercase().replace(Regex("\\s+"), " ")
             val l = location.trim().lowercase().replace(Regex("\\s+"), " ")
-            return "${tag}title:$t|company:$c|location:$l"
+            return "${tag}fallback:${sha256("$t|$c|$l")}"
+        }
+
+        private fun sha256(value: String): String {
+            val bytes = MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8))
+            return bytes.joinToString("") { "%02x".format(it) }
         }
     }
 
@@ -55,7 +66,7 @@ class LinkedInGuestJobSourceProvider(
 
         while (start < maxResults) {
             val url = buildUrl(criteria, start, pageSize)
-            Log.d(TAG, "Fetching: $url")
+            Log.i(TAG, "Fetching LinkedIn guest jobs with params: ${url.substringAfter('?')}")
 
             val result = fetchPage(url)
             if (result.error != null) {
@@ -94,7 +105,10 @@ class LinkedInGuestJobSourceProvider(
                 .url(url)
                 .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36")
                 .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-                .header("Accept-Language", "en-US,en;q=0.5")
+                .header("Accept-Language", "en-US,en;q=0.9")
+                .header("Cache-Control", "no-cache")
+                .header("Pragma", "no-cache")
+                .header("Referer", "https://www.linkedin.com/jobs/search/")
                 .build()
 
             val response = client.newCall(request).execute()
@@ -158,10 +172,13 @@ class LinkedInGuestJobSourceProvider(
         val lower = html.lowercase()
         return lower.contains("please verify you're a human") ||
                 lower.contains("unusual traffic") ||
+                lower.contains("authwall") ||
+                lower.contains("captcha") ||
+                lower.contains("security verification") ||
                 lower.contains("cf-browser-verification") ||
                 lower.contains("access denied") ||
                 lower.contains("robot") ||
-                (html.length < 200 && lower.contains("captcha") || lower.contains("challenge"))
+                (html.length < 200 && lower.contains("challenge"))
     }
 
     internal fun parseJobs(html: String): List<ParsedJob> {
@@ -196,33 +213,41 @@ class LinkedInGuestJobSourceProvider(
     }
 
     private fun parseSingleCard(card: org.jsoup.nodes.Element): ParsedJob? {
-        val linkEl = card.selectFirst("a[href*='/jobs/view']")
+        val linkEl = card.selectFirst("a.base-card__full-link[href]")
+            ?: card.selectFirst("a[href*='/jobs/view']")
             ?: card.selectFirst("a.base-card__full-link")
             ?: card.selectFirst("a[href*='linkedin.com/jobs/view']")
         val url = linkEl?.attr("href")?.trim()
             ?.let { if (it.startsWith("http")) it else "https://www.linkedin.com${it}" }
+            ?.substringBefore("?")
 
-        val titleEl = card.selectFirst(".base-search-card__title")
+        val jobId = extractJobId(card, url)
+
+        val titleEl = card.selectFirst("h3.base-search-card__title")
+            ?: card.selectFirst(".base-search-card__title")
             ?: card.selectFirst("h3[class*='title']")
             ?: card.selectFirst("a[class*='title']")
             ?: card.selectFirst("h3")
         val title = titleEl?.text()?.trim() ?: return null
 
-        val companyEl = card.selectFirst(".base-search-card__subtitle")
+        val companyEl = card.selectFirst("h4.base-search-card__subtitle")
+            ?: card.selectFirst(".base-search-card__subtitle")
             ?: card.selectFirst("h4[class*='subtitle']")
             ?: card.selectFirst("h4[class*='company']")
             ?: card.selectFirst("h4")
         val company = companyEl?.text()?.trim() ?: ""
 
-        val locationEl = card.selectFirst(".job-search-card__location")
+        val locationEl = card.selectFirst("span.job-search-card__location")
+            ?: card.selectFirst(".job-search-card__location")
             ?: card.selectFirst("[class*='location']")
             ?: card.selectFirst("[class*='metadata'] span")
         val location = locationEl?.text()?.trim() ?: ""
 
         val dateEl = card.selectFirst(".job-search-card__listdate")
+            ?: card.selectFirst(".job-search-card__listdate--new")
             ?: card.selectFirst("time[class*='listdate']")
             ?: card.selectFirst("time")
-        val postedDate = dateEl?.text()?.trim()
+        val postedDate = dateEl?.attr("datetime")?.takeIf { it.isNotBlank() } ?: dateEl?.text()?.trim()
 
         val salaryEl = card.selectFirst("[class*='salary']")
         val salary = salaryEl?.text()?.trim()
@@ -232,9 +257,10 @@ class LinkedInGuestJobSourceProvider(
 
         if (title.isBlank()) return null
 
-        val fingerprint = computeFingerprint(title, company, location, url)
+        val fingerprint = computeFingerprint(jobId, title, company, location, url)
 
         return ParsedJob(
+            jobId = jobId,
             title = title,
             company = company,
             location = location,
@@ -261,17 +287,20 @@ class LinkedInGuestJobSourceProvider(
                 }
 
                 val title = extractFallbackText(card, "h3, h2, [class*='title'], [class*='job-title']") ?: continue
-                val company = extractFallbackText(card, "h4, [class*='company'], [class*='subtitle'], [class*='org'])") ?: ""
+                val company = extractFallbackText(card, "h4, [class*='company'], [class*='subtitle'], [class*='org']") ?: ""
                 val location = extractFallbackText(card, "[class*='location'], [class*='loc'], span.metadata") ?: ""
                 val postedDate = extractFallbackText(card, "time, [class*='date'], [class*='listdate']")
 
-                val fingerprint = computeFingerprint(title, company, location, url)
+                val jobId = extractJobId(card, url)
+                val fingerprint = computeFingerprint(jobId, title, company, location, url)
 
                 jobs.add(ParsedJob(
-                    title = title, company = company, location = location,
+                    jobId = jobId, title = title, company = company, location = location,
                     url = url, postedDate = postedDate, fingerprint = fingerprint
                 ))
-            } catch (_: Exception) { }
+            } catch (e: Exception) {
+                Log.w(TAG, "Skipping malformed LinkedIn job card: ${e.message}")
+            }
         }
         return jobs
     }
@@ -286,50 +315,50 @@ class LinkedInGuestJobSourceProvider(
     }
 
     internal fun buildUrl(criteria: JobSearchCriteria, start: Int, count: Int): String {
-        val params = mutableListOf<String>()
+        val safeCount = count.coerceIn(1, 50)
+        val builder = SEARCH_URL.toHttpUrl().newBuilder()
 
-        val keywords = buildKeywords(criteria)
-        if (keywords.isNotBlank()) {
-            params.add("keywords=${encodeParam(keywords)}")
-        }
+        buildKeywords(criteria).takeIf { it.isNotBlank() }?.let { builder.addQueryParameter("keywords", it) }
+        criteria.location.trim().takeIf { it.isNotBlank() }?.let { builder.addQueryParameter("location", it) }
+        mapDatePosted(criteria.datePosted)?.let { builder.addQueryParameter("f_TPR", it) }
+        mapExperience(criteria.experience)?.let { builder.addQueryParameter("f_E", it) }
+        mapJobType(criteria)?.let { builder.addQueryParameter("f_JT", it) }
+        if (criteria.activelyHiring) builder.addQueryParameter("f_AL", "true")
+        if (criteria.remote == true) builder.addQueryParameter("f_WT", "3")
 
-        if (criteria.location.isNotBlank()) {
-            params.add("location=${encodeParam(criteria.location)}")
-        }
+        builder.addQueryParameter("sortBy", "R")
+        builder.addQueryParameter("start", start.coerceAtLeast(0).toString())
+        builder.addQueryParameter("count", safeCount.toString())
 
-        val tpr = mapDatePosted(criteria.datePosted)
-        if (tpr != null) params.add("f_TPR=$tpr")
-
-        val exp = mapExperience(criteria.experience)
-        if (exp != null) params.add("f_E=$exp")
-
-        val jobType = mapJobType(criteria)
-        if (jobType != null) params.add("f_JT=$jobType")
-
-        if (criteria.remote == true) {
-            params.add("f_WT=3")
-        }
-
-        params.add("start=$start")
-        params.add("count=$count")
-        params.add("sortBy=DD")
-
-        return "$SEARCH_URL?${params.joinToString("&")}"
+        return builder.build().toString()
     }
 
     private fun buildKeywords(criteria: JobSearchCriteria): String {
-        val parts = mutableListOf(criteria.role)
-        if (criteria.skills.isNotEmpty()) {
-            parts.addAll(criteria.skills)
-        }
+        val parts = mutableListOf<String>()
+        criteria.role.split(",", "/", "|")
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .firstOrNull()
+            ?.let { parts.add(it) }
+        criteria.skills
+            .flatMap { it.split(",", "/", "|") }
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinctBy { it.lowercase() }
+            .take(8)
+            .forEach { parts.add(it) }
         if (!criteria.company.isNullOrBlank()) {
-            parts.add(criteria.company)
+            parts.add(criteria.company.trim())
         }
         return parts.joinToString(" ")
+            .replace(Regex("[\\r\\n\\t]+"), " ")
+            .replace(Regex("\\s+"), " ")
+            .take(240)
     }
 
     private fun mapDatePosted(datePosted: String?): String? {
         return when (datePosted?.lowercase()) {
+            null, "", "hour", "past hour", "r3600" -> "r3600"
             "24h", "past 24 hours", "r86400" -> "r86400"
             "week", "past week", "r604800" -> "r604800"
             "month", "past month", "r2592000" -> "r2592000"
@@ -339,19 +368,46 @@ class LinkedInGuestJobSourceProvider(
 
     private fun mapExperience(experience: String): String? {
         return when (experience.lowercase()) {
-            "entry", "entry level", "internship" -> "2"
-            "mid", "mid level", "associate" -> "4"
-            "senior", "senior level" -> "3"
-            "lead", "director", "executive" -> "5"
+            "intern", "internship" -> "1"
+            "entry", "entry level" -> "2"
+            "associate", "mid", "mid level" -> "3"
+            "senior", "senior level", "mid-senior", "mid senior" -> "4"
+            "lead", "director" -> "5"
+            "executive" -> "6"
             else -> null
         }
     }
 
     private fun mapJobType(criteria: JobSearchCriteria): String? {
-        return null
+        val mapped = criteria.jobTypes.mapNotNull { type ->
+            when (type.lowercase().trim()) {
+                "full-time", "full time", "fulltime", "f" -> "F"
+                "contract", "contractor", "c" -> "C"
+                "part-time", "part time", "parttime", "p" -> "P"
+                "temporary", "temp", "t" -> "T"
+                "internship", "intern", "i" -> "I"
+                else -> null
+            }
+        }
+        return (if (mapped.isEmpty()) listOf("F", "C") else mapped).distinct().joinToString(",")
     }
 
-    private fun encodeParam(value: String): String {
-        return java.net.URLEncoder.encode(value, "UTF-8")
+    private fun extractJobId(card: org.jsoup.nodes.Element, url: String?): String? {
+        val attrs = listOf(
+            card.attr("data-entity-urn"),
+            card.attr("data-id"),
+            card.attr("data-job-id"),
+            card.selectFirst("[data-entity-urn]")?.attr("data-entity-urn"),
+            card.selectFirst("[data-id]")?.attr("data-id"),
+            card.selectFirst("[data-job-id]")?.attr("data-job-id"),
+        )
+        attrs.firstOrNull { !it.isNullOrBlank() }?.let { raw ->
+            Regex("(\\d{6,})").find(raw)?.value?.let { return it }
+        }
+        if (!url.isNullOrBlank()) {
+            Regex("/jobs/view/(\\d+)").find(url)?.groupValues?.getOrNull(1)?.let { return it }
+            Regex("currentJobId=(\\d+)").find(url)?.groupValues?.getOrNull(1)?.let { return it }
+        }
+        return null
     }
 }

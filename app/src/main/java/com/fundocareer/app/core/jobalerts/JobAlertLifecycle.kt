@@ -46,7 +46,7 @@ object JobAlertLifecycle {
             try {
                 val repo = JobAlertRepository.getInstance(context)
 
-                if (newEmail == previousEmail && previousEmail != null) {
+                if (newEmail == previousEmail) {
                     val wasPaused = repo.isSchedulerPausedDueToLogout(newEmail)
                     // Scheduler must be started only from Native Jobs page Save & Start flow.
                     // Same-account resume does NOT auto-start the scheduler.
@@ -68,10 +68,7 @@ object JobAlertLifecycle {
                 // Scheduler must be started only from Native Jobs page Save & Start flow.
                 // Login does NOT auto-start the scheduler.
                 if (previousEmail != null && newEmail != previousEmail) {
-                    Log.i(TAG, "Different account login: clearing old data for $previousEmail, setting up for $newEmail")
-                    repo.deleteAllUserData(previousEmail)
-                    repo.deleteAllUserData(newEmail)
-                    Log.i(TAG, "Old user data cleared for $newEmail")
+                    Log.i(TAG, "Different account login detected: previous=$previousEmail, new=$newEmail. Preserving local scheduler rows; explicit Stop Scheduler is the only local delete path.")
                 } else if (previousEmail == null) {
                     Log.i(TAG, "First-ever login for $newEmail")
                 }

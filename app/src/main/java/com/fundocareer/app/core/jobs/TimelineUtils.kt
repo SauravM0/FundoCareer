@@ -37,7 +37,7 @@ fun intervalDisplayLabel(minutes: Long): String = when (minutes) {
     120L -> "2 hours"
     360L -> "6 hours"
     720L -> "12 hours"
-    1440L -> "24 hours"
+    1440L -> "Daily"
     else -> "${minutes} minutes"
 }
 
