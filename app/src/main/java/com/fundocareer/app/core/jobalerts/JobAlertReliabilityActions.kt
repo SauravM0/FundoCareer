@@ -5,8 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.provider.Settings
-import android.util.Log
 import android.widget.Toast
+import com.fundocareer.app.core.logging.FcLog
 
 sealed class ReliabilityAction(val label: String) {
 
@@ -37,30 +37,25 @@ object JobAlertReliabilityActions {
             || item.status == ReliabilityItemStatus.UserConfirmed
         ) return emptyList()
 
-        Log.d(TAG, "getActionsForItem: type=${item.type}, status=${item.status}")
+        FcLog.d(FcLog.TAG_RELIABILITY, "getActionsForItem", mapOf(
+            "type" to item.type.name,
+            "status" to item.status.name,
+        ))
 
         return when (item.type) {
             ReliabilityItemType.NotificationPermission -> notificationActions(context)
             ReliabilityItemType.BatteryOptimization -> batteryActions(context)
-            ReliabilityItemType.MicrophonePermission -> microphoneActions(context)
-            ReliabilityItemType.CameraPermission -> cameraActions(context)
-            ReliabilityItemType.FileUploadSupport -> fileUploadActions(context)
             ReliabilityItemType.BackgroundData -> backgroundDataActions(context)
             ReliabilityItemType.AutostartOem -> autostartActions(context)
-            ReliabilityItemType.ActiveScheduler -> activeSchedulerActions()
         }
     }
 
     fun isRequiredForBestReliability(type: ReliabilityItemType): Boolean {
         return when (type) {
             ReliabilityItemType.NotificationPermission -> true
-            ReliabilityItemType.BatteryOptimization -> false
-            ReliabilityItemType.MicrophonePermission -> false
-            ReliabilityItemType.CameraPermission -> false
-            ReliabilityItemType.FileUploadSupport -> false
-            ReliabilityItemType.BackgroundData -> false
-            ReliabilityItemType.AutostartOem -> false
-            ReliabilityItemType.ActiveScheduler -> false
+            ReliabilityItemType.BatteryOptimization -> true
+            ReliabilityItemType.BackgroundData -> true
+            ReliabilityItemType.AutostartOem -> OEMDeviceHelper.hasOemAutostart()
         }
     }
 
@@ -87,41 +82,28 @@ object JobAlertReliabilityActions {
     }
 
     private fun batteryActions(context: Context): List<ReliabilityAction> {
-        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+        val actions = mutableListOf<ReliabilityAction>()
+
+        val requestIntent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
             data = android.net.Uri.parse("package:${context.packageName}")
         }
+        val canResolve = requestIntent.resolveActivity(context.packageManager) != null
 
-        val canResolve = intent.resolveActivity(context.packageManager) != null
-
-        return if (canResolve && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            listOf(
+        if (canResolve && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            actions.add(
                 ReliabilityAction.OpenSettings(
                     label = "Disable battery optimization",
-                    intent = intent
-                ),
-                ReliabilityAction.OpenSettings(
-                    label = "Open app settings",
-                    intent = createAppDetailsIntent(context)
-                )
-            )
-        } else {
-            listOf(
-                ReliabilityAction.OpenSettings(
-                    label = "Open app settings",
-                    intent = createAppDetailsIntent(context)
+                    intent = requestIntent
                 )
             )
         }
-    }
 
-    private fun microphoneActions(context: Context): List<ReliabilityAction> {
-        val actions = mutableListOf<ReliabilityAction>()
-
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+        val oemBatteryIntent = OEMDeviceHelper.getBatterySettingsIntent(context)
+        if (oemBatteryIntent != null && oemBatteryIntent.resolveActivity(context.packageManager) != null) {
             actions.add(
-                ReliabilityAction.RequestPermission(
-                    label = "Grant microphone permission",
-                    permission = Manifest.permission.RECORD_AUDIO
+                ReliabilityAction.OpenSettings(
+                    label = "Open ${OEMDeviceHelper.getBrandName()} battery settings",
+                    intent = oemBatteryIntent
                 )
             )
         }
@@ -133,43 +115,14 @@ object JobAlertReliabilityActions {
             )
         )
 
-        return actions
-    }
-
-    private fun cameraActions(context: Context): List<ReliabilityAction> {
-        val actions = mutableListOf<ReliabilityAction>()
-
         actions.add(
-            ReliabilityAction.RequestPermission(
-                label = "Grant camera permission",
-                permission = Manifest.permission.CAMERA
-            )
-        )
-
-        actions.add(
-            ReliabilityAction.OpenSettings(
-                label = "Open app settings",
-                intent = createAppDetailsIntent(context)
-            )
-        )
-
-        return actions
-    }
-
-    private fun fileUploadActions(context: Context): List<ReliabilityAction> {
-        return listOf(
             ReliabilityAction.Guidance(
-                label = "About file upload",
-                message = "FundoCareer can upload resumes, cover letters, and other documents " +
-                    "during job applications. This works automatically on most devices.\n\n" +
-                    "Go to Settings > Apps > FundoCareer > Permissions and ensure " +
-                    "\"Files and media\" is enabled if available."
-            ),
-            ReliabilityAction.OpenSettings(
-                label = "Open app settings",
-                intent = createAppDetailsIntent(context)
+                label = "Show instructions",
+                message = OEMDeviceHelper.getBatteryInstructions()
             )
         )
+
+        return actions
     }
 
     private fun backgroundDataActions(context: Context): List<ReliabilityAction> {
@@ -200,29 +153,33 @@ object JobAlertReliabilityActions {
     }
 
     private fun autostartActions(context: Context): List<ReliabilityAction> {
-        return listOf(
-            ReliabilityAction.Guidance(
-                label = "How to enable autostart",
-                message = "On many devices (Xiaomi, Huawei, Oppo, Samsung), " +
-                    "apps need autostart permission to run after reboot.\n\n" +
-                    "Go to Settings > Apps > FundoCareer > " +
-                    "Enable \"Autostart\" or \"Allow background activity\"."
-            ),
+        val actions = mutableListOf<ReliabilityAction>()
+
+        val autostartIntent = OEMDeviceHelper.getAutostartIntent(context)
+        if (autostartIntent != null && autostartIntent.resolveActivity(context.packageManager) != null) {
+            actions.add(
+                ReliabilityAction.OpenSettings(
+                    label = "Open ${OEMDeviceHelper.getBrandName()} autostart settings",
+                    intent = autostartIntent
+                )
+            )
+        }
+
+        actions.add(
             ReliabilityAction.OpenSettings(
                 label = "Open app settings",
                 intent = createAppDetailsIntent(context)
             )
         )
-    }
 
-    private fun activeSchedulerActions(): List<ReliabilityAction> {
-        return listOf(
+        actions.add(
             ReliabilityAction.Guidance(
-                label = "Set up scheduler",
-                message = "Go to the Job Search tab, fill in your search criteria, " +
-                    "and tap \"Save & Start Scheduler\" to begin."
+                label = "Show instructions",
+                message = OEMDeviceHelper.getDeviceSpecificAutostartInstructions()
             )
         )
+
+        return actions
     }
 
     private fun createNotificationSettingsIntent(context: Context): Intent {
@@ -241,23 +198,30 @@ object JobAlertReliabilityActions {
 
     fun executeOpenSettingsAction(context: Context, action: ReliabilityAction.OpenSettings) {
         try {
-            Log.d(TAG, "executeOpenSettingsAction: opening ${action.label}")
+            FcLog.d(FcLog.TAG_RELIABILITY, "executeOpenSettingsAction", mapOf(
+                "label" to action.label,
+            ))
             context.startActivity(action.intent)
-            Log.d(TAG, "executeOpenSettingsAction: intent launched successfully")
+            FcLog.d(FcLog.TAG_RELIABILITY, "Intent launched successfully", mapOf(
+                "label" to action.label,
+            ))
         } catch (e: Exception) {
-            Log.w(TAG, "executeOpenSettingsAction: failed to start intent", e)
+            FcLog.w(FcLog.TAG_RELIABILITY, "Failed to start intent", mapOf(
+                "label" to action.label,
+                "error" to e.message,
+            ))
             Toast.makeText(
                 context,
-                "Please open app settings and allow background activity for FundoCareer.",
+                "Unable to open settings. Please go to Settings > Apps > FundoCareer.",
                 Toast.LENGTH_LONG
             ).show()
         }
     }
 
     fun executeGuidanceAction(context: Context, action: ReliabilityAction.Guidance) {
-        Log.d(TAG, "executeGuidanceAction: showing guidance: ${action.label}")
+        FcLog.d(FcLog.TAG_RELIABILITY, "executeGuidanceAction", mapOf(
+            "label" to action.label,
+        ))
         Toast.makeText(context, action.message, Toast.LENGTH_LONG).show()
     }
-
-    private const val TAG = "ReliabilityActions"
 }

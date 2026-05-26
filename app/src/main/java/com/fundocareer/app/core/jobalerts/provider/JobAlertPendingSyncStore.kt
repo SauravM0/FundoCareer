@@ -1,7 +1,7 @@
 package com.fundocareer.app.core.jobalerts.provider
 
 import android.content.Context
-import android.util.Log
+import com.fundocareer.app.core.logging.FcLog
 
 suspend fun retryPendingSync(
     context: Context,
@@ -25,14 +25,21 @@ suspend fun retryPendingSync(
             try {
                 val result = apiClient.deactivateDevice(identity.deviceId, preferenceId)
                 if (result.success) {
-                    Log.i(TAG, "Pending deactivation succeeded for $preferenceId")
+                    FcLog.i(FcLog.TAG_ACTIVE_DEVICE, "Pending deactivation succeeded", mapOf(
+                        "preferenceId" to preferenceId,
+                    ))
                     store.clearAll()
                 } else {
-                    Log.w(TAG, "Pending deactivation failed for $preferenceId: ${result.error}")
+                    FcLog.w(FcLog.TAG_ACTIVE_DEVICE, "Pending deactivation failed", mapOf(
+                        "preferenceId" to preferenceId,
+                        "error" to result.error,
+                    ))
                     store.incrementRetry()
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Pending deactivation threw for $preferenceId", e)
+                FcLog.e(FcLog.TAG_ACTIVE_DEVICE, "Pending deactivation threw", e, mapOf(
+                    "preferenceId" to preferenceId,
+                ))
                 store.incrementRetry()
             }
         }
@@ -40,17 +47,26 @@ suspend fun retryPendingSync(
             try {
                 val result = apiClient.activateDevice(identity, preferenceId)
                 if (result.success) {
-                    Log.i(TAG, "Pending activation succeeded for $preferenceId")
+                    FcLog.i(FcLog.TAG_ACTIVE_DEVICE, "Pending activation succeeded", mapOf(
+                        "preferenceId" to preferenceId,
+                    ))
                     store.clearAll()
                 } else if (result.errorCode == "ACTIVE_DEVICE_EXISTS") {
-                    Log.w(TAG, "Pending activation blocked by another active device for $preferenceId; clearing pending activation")
+                    FcLog.w(FcLog.TAG_ACTIVE_DEVICE, "Pending activation blocked by another active device", mapOf(
+                        "preferenceId" to preferenceId,
+                    ))
                     store.clearAll()
                 } else {
-                    Log.w(TAG, "Pending activation failed for $preferenceId: ${result.error}")
+                    FcLog.w(FcLog.TAG_ACTIVE_DEVICE, "Pending activation failed", mapOf(
+                        "preferenceId" to preferenceId,
+                        "error" to result.error,
+                    ))
                     store.incrementRetry()
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Pending activation threw for $preferenceId", e)
+                FcLog.e(FcLog.TAG_ACTIVE_DEVICE, "Pending activation threw", e, mapOf(
+                    "preferenceId" to preferenceId,
+                ))
                 store.incrementRetry()
             }
         }
@@ -121,5 +137,3 @@ class JobAlertPendingSyncStore(context: Context) {
         private const val KEY_RETRY_COUNT = "pending_retry_count"
     }
 }
-
-private const val TAG = "PendingSyncStore"

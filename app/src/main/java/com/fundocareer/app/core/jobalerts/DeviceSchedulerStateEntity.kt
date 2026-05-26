@@ -30,7 +30,11 @@ data class DeviceSchedulerStateEntity(
     val scheduledMinute: Int? = null,
     val timeZoneId: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    val isThisDeviceActive: Boolean = false,
+    val activeDeviceName: String? = null,
+    val activeDeviceLastSeen: String? = null,
+    val takeoverRequired: Boolean = false
 )
 
 @Dao

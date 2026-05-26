@@ -6,13 +6,12 @@ import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
-import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import com.fundocareer.app.core.logging.FcLog
 
 object JobAlertNotificationHelper {
-    private const val TAG = "JobAlertNotif"
     private const val CHANNEL_ID = "fundocareer_job_alerts"
     private const val CHANNEL_NAME = "Job Alerts"
     private const val CHANNEL_DESC = "Notifications for new job matches"
@@ -26,7 +25,9 @@ object JobAlertNotificationHelper {
         }
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         nm.createNotificationChannel(channel)
-        Log.d(TAG, "Notification channel created: $CHANNEL_ID")
+        FcLog.d(FcLog.TAG_PERMISSION, "Notification channel created", mapOf(
+            "channelId" to CHANNEL_ID,
+        ))
     }
 
     fun showJobAlertNotification(
@@ -40,7 +41,7 @@ object JobAlertNotificationHelper {
             if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED
             ) {
-                Log.w(TAG, "POST_NOTIFICATIONS not granted, skipping notification")
+                FcLog.w(FcLog.TAG_PERMISSION, "POST_NOTIFICATIONS not granted, skipping notification")
                 return
             }
         }
@@ -58,6 +59,9 @@ object JobAlertNotificationHelper {
             .build()
 
         NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
-        Log.i(TAG, "Notification shown: $count jobs for $preferenceName")
+        FcLog.i(FcLog.TAG_EMAIL, "Notification shown", mapOf(
+            "count" to count,
+            "preferenceName" to preferenceName,
+        ))
     }
 }

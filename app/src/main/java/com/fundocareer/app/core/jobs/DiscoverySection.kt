@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Devices
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.History
@@ -60,19 +61,12 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -81,22 +75,16 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import android.content.Context
-import android.util.Log
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import com.fundocareer.app.BuildConfig
 import com.fundocareer.app.core.jobalerts.JobAlertReliabilityEngine
-import com.fundocareer.app.core.jobalerts.JobAlertReliabilityStatus
-import com.fundocareer.app.core.jobalerts.OverallReliability
 import com.fundocareer.app.core.jobalerts.SchedulerDisplayStatus
-import com.fundocareer.app.core.jobalerts.ReliabilityAction
 import com.fundocareer.app.core.jobalerts.ReliabilityChecklistItem
 import com.fundocareer.app.core.jobalerts.ReliabilityItemStatus
-import com.fundocareer.app.core.jobalerts.ReliabilityItemType
 import com.fundocareer.app.core.jobalerts.ui.theme.FcAmber
 import com.fundocareer.app.core.jobalerts.ui.theme.FcAmberLight
 import com.fundocareer.app.core.jobalerts.ui.theme.FcGreen
@@ -105,7 +93,18 @@ import com.fundocareer.app.core.jobalerts.ui.theme.FcRed
 import com.fundocareer.app.core.jobalerts.ui.theme.FcRedLight
 import com.fundocareer.app.core.jobalerts.ui.theme.FcSlate200
 import com.fundocareer.app.core.jobalerts.ui.theme.FcSlate500
+import com.fundocareer.app.core.jobalerts.ReliabilitySetupScreen
 import com.fundocareer.app.core.jobalerts.provider.JobAlertApiClient.TimelineEvent
+import com.fundocareer.app.core.logging.FcLog
+import com.fundocareer.app.core.ui.composables.DetailRow
+import com.fundocareer.app.core.ui.composables.ErrorCard
+import com.fundocareer.app.core.ui.composables.FormTextField
+import com.fundocareer.app.core.ui.composables.LoadingIndicator
+import com.fundocareer.app.core.ui.composables.LoginPromptCard
+import com.fundocareer.app.core.ui.composables.ResultCard
+import com.fundocareer.app.core.ui.composables.SectionHeader
+import com.fundocareer.app.core.ui.composables.SetupEmailErrorBanner
+import com.fundocareer.app.core.ui.composables.StatusChip
 import kotlinx.coroutines.launch
 
 @Composable
@@ -113,35 +112,12 @@ fun DiscoverySection(viewModel: JobsViewModel) {
     val uiState by viewModel.uiState.collectAsState()
     val formState by viewModel.formState.collectAsState()
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-
-    var showReliabilitySetup by rememberSaveable { mutableStateOf(false) }
-    var setupChecklistItems by remember { mutableStateOf<List<ReliabilityChecklistItem>>(emptyList()) }
-    var setupReliabilityStatus by remember { mutableStateOf<JobAlertReliabilityStatus?>(null) }
-    var pendingSetupSave by rememberSaveable { mutableStateOf(false) }
-    var setupRefreshKey by remember { mutableIntStateOf(0) }
-
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                setupRefreshKey++
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { setupRefreshKey++ }
 
     val hasActive = uiState.activePreference != null && uiState.schedulerStatus != SchedulerDisplayStatus.Stopped
-    val showHistory = uiState.timeline.isNotEmpty() || hasActive
 
     Box(modifier = Modifier.fillMaxSize()) {
         when {
-            uiState.isLoading -> LoadingView()
+            uiState.isLoading -> LoadingIndicator()
             !uiState.isLoggedIn -> LoginPromptCard(
                 onLoginSuccess = { viewModel.reload() },
                 modifier = Modifier.fillMaxSize(),
@@ -171,18 +147,12 @@ fun DiscoverySection(viewModel: JobsViewModel) {
                         )
                     }
 
-                    if (uiState.saveFlowSteps.isNotEmpty()) {
-                        SaveFlowStatusCard(steps = uiState.saveFlowSteps)
-                    }
-
-                    if (BuildConfig.DEBUG) {
-                        SchedulerDiagnosticsCard(
-                            diagnostics = uiState.diagnostics,
-                            onPing = { viewModel.testBackendPing() },
-                            onSetupEmail = { viewModel.sendSetupTestEmail() },
-                            onRunNow = { viewModel.runSchedulerNow() },
-                            onZeroJobEmail = { viewModel.sendZeroJobTestEmail() },
-                            onVerifyDevice = { viewModel.verifyActiveDeviceDiagnostic() },
+                    if (uiState.activePreference != null && !uiState.activePreference!!.setupConfirmationSent && !uiState.activePreference!!.setupConfirmationError.isNullOrBlank()) {
+                        SetupEmailErrorBanner(
+                            errorMessage = uiState.activePreference!!.setupConfirmationError ?: "Unknown error",
+                            errorCode = uiState.activePreference!!.setupConfirmationErrorCode,
+                            isRetrying = uiState.isRetryingSetupEmail,
+                            onRetry = { viewModel.retrySetupConfirmationEmail() },
                         )
                     }
 
@@ -223,59 +193,48 @@ fun DiscoverySection(viewModel: JobsViewModel) {
                             formState = formState,
                             onFormChange = { transform -> viewModel.updateForm(transform) },
                             isSaving = uiState.isSaving,
-                    onSave = {
-                                if (uiState.isSaving || pendingSetupSave) {
-                                    Log.w("DiscoverySection", "save already in progress, ignoring duplicate click")
-                                } else if (!JobAlertReliabilityEngine.isSetupSeen(context)) {
-                                    Log.i("DiscoverySection", "setup sheet shown — pendingSetupSave=true")
-                                    scope.launch {
-                                        val status = JobAlertReliabilityEngine.getReliabilityStatus(
-                                            context, uiState.schedulerState
-                                        )
-                                        setupChecklistItems = status.items
-                                        setupReliabilityStatus = status
-                                        pendingSetupSave = true
-                                        showReliabilitySetup = true
-                                    }
+                            onSave = {
+                                if (uiState.isSaving) {
+                                    FcLog.w(FcLog.TAG_APP, "Save already in progress, ignoring duplicate click")
                                 } else {
-                                    Log.i("DiscoverySection", "setup already seen — saving directly")
-                                    viewModel.savePreference()
+                                    FcLog.i(FcLog.TAG_APP, "Starting save with reliability check")
+                                    viewModel.startSaveWithReliabilityCheck()
                                 }
                             },
-                        )
-                    }
-
-                    if (hasActive && !isOtherDeviceActive) {
-                        val reliabilityStatus = remember(setupRefreshKey, uiState.schedulerState) {
-                            JobAlertReliabilityEngine.getReliabilityStatus(context, uiState.schedulerState)
-                        }
-                        ReliabilityStatusChip(
-                            status = reliabilityStatus,
-                            onClick = {
-                                Log.i("DiscoverySection", "reliability setup opened from status chip")
-                                scope.launch {
-                                    val status = JobAlertReliabilityEngine.getReliabilityStatus(
-                                        context, uiState.schedulerState
-                                    )
-                                    setupChecklistItems = status.items
-                                    setupReliabilityStatus = status
-                                    showReliabilitySetup = true
-                                }
-                            },
-                        )
-                    }
-
-                    if (showHistory) {
-                        HistoryPreview(
-                            timeline = uiState.timeline,
-                            dateFormat = viewModel.dateFormat,
-                            hasActiveScheduler = hasActive,
                         )
                     }
 
                     Spacer(Modifier.height(24.dp))
                 }
             }
+        }
+
+        if (uiState.showTakeoverConfirmDialog) {
+            AlertDialog(
+                onDismissRequest = { viewModel.hideTakeoverDialog() },
+                title = { Text("Use this phone for job alerts?") },
+                text = {
+                    Text(
+                        "Another device is currently managing job alerts for your search criteria. " +
+                        "Do you want to take over with this phone?"
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = { viewModel.takeoverDevice() },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                    ) {
+                        Icon(Icons.Default.Devices, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Use this phone", fontWeight = FontWeight.SemiBold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { viewModel.hideTakeoverDialog() }) {
+                        Text("Keep current device")
+                    }
+                },
+            )
         }
 
         if (uiState.showStopConfirmDialog) {
@@ -299,93 +258,31 @@ fun DiscoverySection(viewModel: JobsViewModel) {
             )
         }
 
-        LaunchedEffect(setupRefreshKey) {
-            if (showReliabilitySetup) {
-                val freshStatus = JobAlertReliabilityEngine.getReliabilityStatus(
-                    context, uiState.schedulerState
+        if (uiState.showReliabilitySetup) {
+            val status = uiState.reliabilitySetupStatus
+            if (status != null) {
+                ReliabilitySetupScreen(
+                    initialStatus = status,
+                    onRefreshStatus = { viewModel.refreshReliabilitySetup() },
+                    onDismiss = { viewModel.hideReliabilitySetup() },
+                    onContinue = { viewModel.onReliabilitySetupContinue() },
+                    onOpenSettings = { intent ->
+                        try {
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            FcLog.w(FcLog.TAG_PERMISSION, "Unable to open reliability settings", mapOf(
+                                        "error" to e.message,
+                                    ))
+                        }
+                    },
+                    onRequestPermission = { _ ->
+                        // POST_NOTIFICATIONS is handled internally by ReliabilitySetupScreen
+                    },
+                    onConfirmAutostart = { viewModel.confirmReliabilityAutostart() },
+                    onConfirmBattery = { viewModel.confirmReliabilityBattery() },
+                    onConfirmBackground = { viewModel.confirmReliabilityBackground() },
                 )
-                setupChecklistItems = freshStatus.items
-                setupReliabilityStatus = freshStatus
             }
-        }
-
-        if (showReliabilitySetup) {
-            ReliabilitySetupSheet(
-                items = setupChecklistItems,
-                onContinueAndStart = {
-                    Log.i("DiscoverySection", "setup continued — marking setupSeen=true")
-                    JobAlertReliabilityEngine.markSetupSeen(context)
-                    JobAlertReliabilityEngine.acknowledgeLimitedReliability(context)
-                    showReliabilitySetup = false
-                    if (pendingSetupSave) {
-                        pendingSetupSave = false
-                        Log.i("DiscoverySection", "scheduler save resumed after setup")
-                        viewModel.savePreference()
-                    }
-                },
-                onCancel = {
-                    Log.i("DiscoverySection", "setup cancelled — marking setupSeen, clearing pendingSetupSave")
-                    JobAlertReliabilityEngine.markSetupSeen(context)
-                    showReliabilitySetup = false
-                    pendingSetupSave = false
-                },
-                onOpenSettings = { intent ->
-                    try {
-                        context.startActivity(intent)
-                    } catch (e: Exception) {
-                        Log.w("DiscoverySection", "Unable to open reliability settings: ${e.message}", e)
-                    }
-                },
-                onRequestPermission = { permission ->
-                    notificationPermissionLauncher.launch(permission)
-                },
-                onConfirmAutostart = {
-                    JobAlertReliabilityEngine.confirmAutostart(context)
-                    setupRefreshKey++
-                    scope.launch {
-                        val status = JobAlertReliabilityEngine.getReliabilityStatus(
-                            context, uiState.schedulerState
-                        )
-                        setupChecklistItems = status.items
-                        setupReliabilityStatus = status
-                    }
-                },
-                onConfirmFileUpload = {
-                    JobAlertReliabilityEngine.confirmFileUpload(context)
-                    setupRefreshKey++
-                    scope.launch {
-                        val status = JobAlertReliabilityEngine.getReliabilityStatus(
-                            context, uiState.schedulerState
-                        )
-                        setupChecklistItems = status.items
-                        setupReliabilityStatus = status
-                    }
-                },
-                onRefreshStatus = {
-                    scope.launch {
-                        val status = JobAlertReliabilityEngine.getReliabilityStatus(
-                            context, uiState.schedulerState
-                        )
-                        setupChecklistItems = status.items
-                        setupReliabilityStatus = status
-                    }
-                },
-            )
-        }
-    }
-}
-
-@Composable
-private fun LoadingView() {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            CircularProgressIndicator(modifier = Modifier.size(40.dp), strokeWidth = 3.dp)
-            Spacer(Modifier.height(16.dp))
-            Text(
-                "Loading job search…",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }
@@ -414,7 +311,7 @@ private fun ActiveSchedulerCard(
                     fontWeight = FontWeight.Bold,
                 )
                 Spacer(Modifier.weight(1f))
-                StatusPill(uiState.schedulerStatus)
+                StatusChip(statusLabel(uiState.schedulerStatus), statusColor(uiState.schedulerStatus))
             }
 
             Spacer(Modifier.height(14.dp))
@@ -422,7 +319,7 @@ private fun ActiveSchedulerCard(
             if (pref != null) {
                 DetailRow("Role", pref.role, Icons.Default.Search)
                 DetailRow("Location", pref.location, Icons.Default.Info)
-                DetailRow("Interval", viewModel.intervalDisplayLabel(pref.intervalMinutes), Icons.Default.AccessTime)
+                DetailRow("Interval", intervalDisplayLabel(pref.intervalMinutes), Icons.Default.AccessTime)
             }
 
             pref?.lastRunAt?.let { lastRun ->
@@ -468,42 +365,7 @@ private fun ActiveSchedulerCard(
                 )
             }
 
-            if (pref != null && !pref.setupConfirmationSent) {
-                Spacer(Modifier.height(6.dp))
-                HorizontalDivider()
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    if (pref.setupConfirmationError.isNullOrBlank()) {
-                        "Setup email has not been sent yet."
-                    } else {
-                        "Setup email failed: ${pref.setupConfirmationError}"
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
-                if (!pref.setupConfirmationErrorCode.isNullOrBlank()) {
-                    Text(
-                        "Error code: ${pref.setupConfirmationErrorCode}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Spacer(Modifier.height(8.dp))
-                FilledTonalButton(
-                    onClick = { viewModel.retrySetupConfirmationEmail() },
-                    enabled = !uiState.isRetryingSetupEmail,
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    if (uiState.isRetryingSetupEmail) {
-                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                    } else {
-                        Icon(Icons.Default.Refresh, null, Modifier.size(16.dp))
-                    }
-                    Spacer(Modifier.width(6.dp))
-                    Text("Retry setup email", fontWeight = FontWeight.SemiBold)
-                }
-            } else if (pref?.setupConfirmationSent == true) {
+            if (pref?.setupConfirmationSent == true) {
                 DetailRow(
                     "Setup email",
                     pref.setupConfirmationSentAt?.let { viewModel.formatTs(it) } ?: "Sent",
@@ -522,6 +384,18 @@ private fun ActiveSchedulerCard(
                 Icon(Icons.Default.Pause, null, Modifier.size(18.dp), tint = FcRed)
                 Spacer(Modifier.width(6.dp))
                 Text("Stop Scheduler", color = FcRed, fontWeight = FontWeight.SemiBold)
+            }
+
+            TextButton(
+                onClick = {
+                    FcLog.i(FcLog.TAG_RELIABILITY, "Improve reliability opened from scheduler card")
+                    viewModel.openReliabilitySetup()
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Icon(Icons.Default.Info, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(6.dp))
+                Text("Improve reliability", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
             }
         }
     }
@@ -744,154 +618,6 @@ private fun SchedulerForm(
     }
 }
 
-@Composable
-private fun SectionHeader(title: String, icon: ImageVector) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
-        Spacer(Modifier.width(8.dp))
-        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-    }
-}
-
-@Composable
-private fun StatusPill(status: SchedulerDisplayStatus) {
-    val (bg, fg, label) = when (status) {
-        SchedulerDisplayStatus.Active -> Triple(FcGreenLight, FcGreen, "Active")
-        SchedulerDisplayStatus.Paused -> Triple(FcAmberLight, FcAmber, "Paused")
-        SchedulerDisplayStatus.WaitingForNextRun -> Triple(FcGreenLight, FcGreen, "Waiting for next run")
-        SchedulerDisplayStatus.BackendUnreachable -> Triple(FcAmberLight, FcAmber, "Backend unreachable")
-        SchedulerDisplayStatus.EmailFailed -> Triple(FcRedLight, FcRed, "Email failed")
-        SchedulerDisplayStatus.OtherDeviceActive -> Triple(FcAmberLight, FcAmber, "Another device active")
-        SchedulerDisplayStatus.Stopped -> Triple(FcRedLight, FcRed, "Stopped")
-        SchedulerDisplayStatus.Error -> Triple(FcRedLight, FcRed, "Error")
-        SchedulerDisplayStatus.Loading -> Triple(FcSlate200, FcSlate500, "...")
-    }
-    Box(
-        Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(bg)
-            .padding(horizontal = 10.dp, vertical = 4.dp)
-    ) {
-        Text(label, color = fg, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-    }
-}
-
-@Composable
-private fun SchedulerDiagnosticsCard(
-    diagnostics: SchedulerDiagnosticsState,
-    onPing: () -> Unit,
-    onSetupEmail: () -> Unit,
-    onRunNow: () -> Unit,
-    onZeroJobEmail: () -> Unit,
-    onVerifyDevice: () -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-    ) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Info, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.width(8.dp))
-                Text("Developer diagnostics", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.weight(1f))
-                if (diagnostics.busy) {
-                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                }
-            }
-            DetailRow("API base URL", diagnostics.apiBaseUrl)
-            DetailRow("Logged-in email", diagnostics.loggedInEmail.ifBlank { "Unknown" })
-            DetailRow("Backend ping", diagnostics.backendPingStatus)
-            DetailRow("Local scheduler", diagnostics.localSchedulerState)
-            DetailRow("Backend device", diagnostics.activeDeviceBackendStatus)
-            DetailRow("Last worker run", diagnostics.lastWorkerRunTime)
-            DetailRow("Last worker result", diagnostics.lastWorkerResult)
-            DetailRow("Last email attempt", diagnostics.lastEmailAttempt)
-            diagnostics.lastErrorCode?.let { DetailRow("Last error code", it) }
-            diagnostics.lastAction?.let {
-                Text(
-                    it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    FilledTonalButton(onClick = onPing, enabled = !diagnostics.busy, modifier = Modifier.weight(1f)) {
-                        Text("Test ping", fontSize = 12.sp)
-                    }
-                    FilledTonalButton(onClick = onVerifyDevice, enabled = !diagnostics.busy, modifier = Modifier.weight(1f)) {
-                        Text("Verify device", fontSize = 12.sp)
-                    }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    OutlinedButton(onClick = onRunNow, enabled = !diagnostics.busy, modifier = Modifier.weight(1f)) {
-                        Text("Run now", fontSize = 12.sp)
-                    }
-                    OutlinedButton(onClick = onSetupEmail, enabled = !diagnostics.busy, modifier = Modifier.weight(1f)) {
-                        Text("Setup email", fontSize = 12.sp)
-                    }
-                }
-                OutlinedButton(onClick = onZeroJobEmail, enabled = !diagnostics.busy, modifier = Modifier.fillMaxWidth()) {
-                    Text("Send zero-job test email", fontSize = 12.sp)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DetailRow(label: String, value: String, icon: ImageVector? = null) {
-    Row(
-        Modifier.fillMaxWidth().padding(vertical = 3.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Row(
-            modifier = Modifier.weight(1f),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (icon != null) {
-                Icon(icon, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.width(6.dp))
-            }
-            Text(
-                label,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Spacer(Modifier.width(12.dp))
-        Text(
-            value,
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onSurface,
-            textAlign = TextAlign.End,
-        )
-    }
-}
-
-@Composable
-private fun FormTextField(
-    label: String, value: String, onValueChange: (String) -> Unit,
-    placeholder: String, modifier: Modifier = Modifier,
-    keyboardType: KeyboardType = KeyboardType.Text,
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text(label) },
-        placeholder = { Text(placeholder, color = MaterialTheme.colorScheme.onSurfaceVariant) },
-        modifier = modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-    )
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ExperienceSelector(selected: String, onSelect: (String) -> Unit) {
@@ -972,585 +698,30 @@ private fun DatePostedSelector(selected: String, onSelect: (String) -> Unit) {
     }
 }
 
-@Composable
-private fun HistoryPreview(timeline: List<TimelineEvent>, dateFormat: java.text.SimpleDateFormat, hasActiveScheduler: Boolean) {
-    val filtered = timeline.filter { it.type in com.fundocareer.app.core.jobs.knownPositiveTypes }
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.History, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    if (hasActiveScheduler) "Recent Activity" else "Activity History",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
-            Spacer(Modifier.height(8.dp))
-            if (filtered.isEmpty()) {
-                Text(
-                    "Your job alert activity will appear here.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else {
-                filtered.take(5).forEach { event -> TimelineRow(event, dateFormat) }
-            }
-        }
-    }
-}
 
-@Composable
-private fun TimelineRow(event: TimelineEvent, dateFormat: java.text.SimpleDateFormat) {
-    Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                com.fundocareer.app.core.jobs.formatTs(event.timestamp, dateFormat),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.width(8.dp))
-            when (event.type) {
-                "scheduler_created" -> {
-                    Icon(Icons.Default.CheckCircle, null, Modifier.size(14.dp), tint = FcGreen)
-                    Spacer(Modifier.width(3.dp))
-                    Text("Active", style = MaterialTheme.typography.labelSmall, color = FcGreen, fontWeight = FontWeight.SemiBold)
-                }
-                "scheduler_stopped" -> {
-                    val amber = Color(0xFFFF8F00)
-                    Icon(Icons.Default.Pause, null, Modifier.size(14.dp), tint = amber)
-                    Spacer(Modifier.width(3.dp))
-                    Text("Stopped", style = MaterialTheme.typography.labelSmall, color = amber, fontWeight = FontWeight.SemiBold)
-                }
-                "setup_email_sent" -> {
-                    val blue = Color(0xFF1976D2)
-                    Icon(Icons.Default.Notifications, null, Modifier.size(14.dp), tint = blue)
-                    Spacer(Modifier.width(3.dp))
-                    Text("Confirmation", style = MaterialTheme.typography.labelSmall, color = blue, fontWeight = FontWeight.SemiBold)
-                }
-                "job_alert_sent" -> {
-                    val meta = event.metadata
-                    Text(
-                        "${meta?.jobsSentCount ?: 0} job${if (meta?.jobsSentCount != 1) "s" else ""} sent",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Spacer(Modifier.width(12.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.PictureAsPdf, null,
-                            Modifier.size(14.dp),
-                            tint = if (meta?.pdfAttached == true) FcGreen else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                        )
-                        Spacer(Modifier.width(3.dp))
-                        Text(
-                            if (meta?.pdfAttached == true) "PDF report" else "No PDF",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (meta?.pdfAttached == true) FcGreen else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                        )
-                    }
-                }
-            }
-        }
-        if (event.title.isNotBlank()) {
-            Text(
-                event.title,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-            )
-        }
-    }
-}
-
-@Composable
-private fun ErrorCard(message: String, onDismiss: () -> Unit, onRetry: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-    ) {
-        Column(Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.Top) {
-                Icon(Icons.Default.Warning, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error)
-                Spacer(Modifier.width(8.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("Something went wrong", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
-                    Spacer(Modifier.height(4.dp))
-                    Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer)
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilledTonalButton(onClick = onRetry, shape = MaterialTheme.shapes.small) {
-                    Icon(Icons.Default.Refresh, null, Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Retry")
-                }
-                OutlinedButton(onClick = onDismiss, shape = MaterialTheme.shapes.small) {
-                    Text("Dismiss")
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ResultCard(message: String, onDismiss: () -> Unit) {
-    val isSuccess = !message.startsWith("Error")
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSuccess) MaterialTheme.colorScheme.secondaryContainer
-            else MaterialTheme.colorScheme.errorContainer
-        ),
-    ) {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                if (isSuccess) Icons.Default.CheckCircle else Icons.Default.Warning,
-                null, Modifier.size(20.dp),
-                tint = if (isSuccess) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.error,
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(message, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-            IconButton(onClick = onDismiss) {
-                Icon(Icons.Default.Close, "Dismiss", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-    }
-}
-
-@Composable
-private fun SaveFlowStatusCard(steps: List<SaveFlowStep>) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-    ) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                "Scheduler save status",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-            )
-            steps.forEach { step ->
-                val (icon, tint, label) = when (step.status) {
-                    SaveFlowStatus.Pending -> Triple(Icons.Default.Info, MaterialTheme.colorScheme.onSurfaceVariant, "Pending")
-                    SaveFlowStatus.Running -> Triple(Icons.Default.Refresh, MaterialTheme.colorScheme.primary, "Running")
-                    SaveFlowStatus.Done -> Triple(Icons.Default.CheckCircle, FcGreen, "Done")
-                    SaveFlowStatus.Failed -> Triple(Icons.Default.Warning, MaterialTheme.colorScheme.error, "Failed")
-                    SaveFlowStatus.Skipped -> Triple(Icons.Default.Info, FcAmber, "Skipped")
-                }
-                Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth()) {
-                    Icon(icon, null, Modifier.size(18.dp), tint = tint)
-                    Spacer(Modifier.width(8.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            step.phase.label,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        val detail = buildString {
-                            append(label)
-                            if (!step.errorCode.isNullOrBlank()) append(" (${step.errorCode})")
-                            if (!step.detail.isNullOrBlank()) append(": ${step.detail}")
-                        }
-                        Text(
-                            detail,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (step.status == SaveFlowStatus.Failed) MaterialTheme.colorScheme.error
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ReliabilityStatusChip(
-    status: JobAlertReliabilityStatus,
-    onClick: () -> Unit,
-) {
-    val (label, bgColor, fgColor, icon) = when (status.overall) {
-        OverallReliability.OPTIMIZED -> listOf("Job alerts optimized", FcGreenLight, FcGreen, Icons.Default.CheckCircle)
-        OverallReliability.LIMITED -> listOf("Optimize reliability", FcAmberLight, FcAmber, Icons.Default.Info)
-        else -> listOf("Optimize reliability", FcAmberLight, FcAmber, Icons.Default.Info)
-    }
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(containerColor = bgColor as Color),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-    ) {
-        Row(
-            Modifier.padding(horizontal = 14.dp, vertical = 10.dp).fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(icon as ImageVector, null, Modifier.size(18.dp), tint = fgColor as Color)
-            Spacer(Modifier.width(10.dp))
-            Text(label as String, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = fgColor as Color)
-        }
-    }
-}
-
-// ================================================================
-// Reliability Setup Sheet
-// ================================================================
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ReliabilitySetupSheet(
-    items: List<ReliabilityChecklistItem>,
-    onContinueAndStart: () -> Unit,
-    onCancel: () -> Unit,
-    onOpenSettings: (android.content.Intent) -> Unit,
-    onRequestPermission: (String) -> Unit,
-    onConfirmAutostart: () -> Unit,
-    onConfirmFileUpload: () -> Unit,
-    onRefreshStatus: () -> Unit,
-) {
-    val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-    androidx.compose.material3.ModalBottomSheet(
-        onDismissRequest = onCancel,
-        sheetState = sheetState,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        "Reliability Setup",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "Complete these steps for best on-time job alerts.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                FilledTonalButton(
-                    onClick = onRefreshStatus,
-                    shape = MaterialTheme.shapes.small,
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                ) {
-                    Icon(Icons.Default.Refresh, null, Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Refresh", fontSize = 12.sp)
-                }
-            }
-
-            Spacer(Modifier.height(16.dp))
-
-            items.forEach { item ->
-                ReliabilitySetupItemRow(
-                    item = item,
-                    onOpenSettings = onOpenSettings,
-                    onRequestPermission = onRequestPermission,
-                    onConfirmAutostart = if (item.type == ReliabilityItemType.AutostartOem
-                        && item.status == ReliabilityItemStatus.NotReady
-                    ) onConfirmAutostart else null,
-                    onConfirmFileUpload = if (item.type == ReliabilityItemType.FileUploadSupport
-                        && item.status == ReliabilityItemStatus.NotReady
-                    ) onConfirmFileUpload else null,
-                )
-                Spacer(Modifier.height(8.dp))
-            }
-
-            Spacer(Modifier.height(20.dp))
-
-            Button(
-                onClick = onContinueAndStart,
-                modifier = Modifier.fillMaxWidth().height(48.dp),
-                shape = MaterialTheme.shapes.medium,
-            ) {
-                Text("Continue & Start Scheduler", fontWeight = FontWeight.SemiBold)
-            }
-
-            Spacer(Modifier.height(8.dp))
-
-            OutlinedButton(
-                onClick = onCancel,
-                modifier = Modifier.fillMaxWidth().height(48.dp),
-                shape = MaterialTheme.shapes.medium,
-            ) {
-                Text("Cancel", fontWeight = FontWeight.SemiBold)
-            }
-        }
-    }
-}
-
-@Composable
-private fun ReliabilitySetupItemRow(
-    item: ReliabilityChecklistItem,
-    onOpenSettings: (android.content.Intent) -> Unit,
-    onRequestPermission: (String) -> Unit,
-    onConfirmAutostart: (() -> Unit)?,
-    onConfirmFileUpload: (() -> Unit)?,
-) {
-    val isComplete = item.status == ReliabilityItemStatus.Ready
-        || item.status == ReliabilityItemStatus.NotApplicable
-        || item.status == ReliabilityItemStatus.UserConfirmed
-
-    val required = com.fundocareer.app.core.jobalerts.JobAlertReliabilityActions.isRequiredForBestReliability(item.type)
-    val bgColor = if (isComplete) FcGreenLight else MaterialTheme.colorScheme.surfaceVariant
-    val borderColor = if (isComplete) FcGreen else MaterialTheme.colorScheme.outline
-
-    val statusBadge: @Composable () -> Unit = {
-        if (isComplete) {
-            Box(
-                Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(FcGreenLight)
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-            ) {
-                Text("Ready", fontSize = 10.sp, color = FcGreen, fontWeight = FontWeight.SemiBold)
-            }
-        } else if (required) {
-            Box(
-                Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(FcRedLight)
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-            ) {
-                Text("Needs action", fontSize = 10.sp, color = FcRed, fontWeight = FontWeight.SemiBold)
-            }
-        } else {
-            Box(
-                Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(FcAmberLight)
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-            ) {
-                Text("Recommended", fontSize = 10.sp, color = FcAmber, fontWeight = FontWeight.SemiBold)
-            }
-        }
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(containerColor = bgColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        border = CardDefaults.outlinedCardBorder().copy(
-            brush = androidx.compose.ui.graphics.SolidColor(borderColor)
-        ),
-    ) {
-        Row(
-            Modifier.padding(12.dp).fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = if (isComplete) Icons.Default.CheckCircle else Icons.Default.Warning,
-                contentDescription = null,
-                modifier = Modifier.size(20.dp),
-                tint = if (isComplete) FcGreen else FcAmber,
-            )
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(item.label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.width(6.dp))
-                    statusBadge()
-                }
-                Spacer(Modifier.height(2.dp))
-                Text(item.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            if (onConfirmAutostart != null) {
-                FilledTonalButton(
-                    onClick = onConfirmAutostart,
-                    shape = MaterialTheme.shapes.small,
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                ) {
-                    Text("Mark as done", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                }
-            } else if (onConfirmFileUpload != null) {
-                FilledTonalButton(
-                    onClick = onConfirmFileUpload,
-                    shape = MaterialTheme.shapes.small,
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                ) {
-                    Text("Mark as done", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                }
-            } else if (!isComplete) {
-                val ctx = LocalContext.current
-                val actions = com.fundocareer.app.core.jobalerts.JobAlertReliabilityActions.getActionsForItem(item, ctx)
-                if (actions.isNotEmpty()) {
-                    val primaryAction = actions.first()
-                    when (primaryAction) {
-                        is ReliabilityAction.OpenSettings -> {
-                            FilledTonalButton(
-                                onClick = { onOpenSettings(primaryAction.intent) },
-                                shape = MaterialTheme.shapes.small,
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                            ) { Text("Open Settings", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
-                        }
-                        is ReliabilityAction.RequestPermission -> {
-                            FilledTonalButton(
-                                onClick = { onRequestPermission(primaryAction.permission) },
-                                shape = MaterialTheme.shapes.small,
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                            ) { Text("Grant", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
-                        }
-                        is ReliabilityAction.Guidance -> {
-                            FilledTonalButton(
-                                onClick = {
-                                    android.widget.Toast.makeText(ctx, primaryAction.message, android.widget.Toast.LENGTH_LONG).show()
-                                },
-                                shape = MaterialTheme.shapes.small,
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                            ) { Text("Learn how", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-// ================================================================
-// Login Prompt Card (preserved from original)
-// ================================================================
-
-@Composable
-private fun LoginPromptCard(
-    onLoginSuccess: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-
-    val gso = remember {
-        com.google.android.gms.auth.api.signin.GoogleSignInOptions.Builder(com.google.android.gms.auth.api.signin.GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestIdToken(context.getString(com.fundocareer.app.R.string.default_web_client_id))
-            .requestEmail()
-            .requestProfile()
-            .build()
-    }
-    val googleSignInClient = remember { com.google.android.gms.auth.api.signin.GoogleSignIn.getClient(context, gso) }
-    val tokenStore = remember { com.fundocareer.app.SecureTokenStore(context) }
-    val authManager = remember { com.fundocareer.app.AuthManager(context, tokenStore) }
-
-    var isSigningIn by remember { mutableStateOf(false) }
-
-    fun exchangeGoogleTokenSuspend(idToken: String, onResult: (Boolean) -> Unit) {
-        authManager.exchangeGoogleToken(idToken, object : com.fundocareer.app.AuthManager.AuthCallback {
-            override fun onSuccess(authData: org.json.JSONObject) { onResult(true) }
-            override fun onError(error: String) { onResult(false) }
-        })
-    }
-
-    val googleSignInLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-        contract = androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-            if (result.resultCode == android.app.Activity.RESULT_OK && result.data != null) {
-                scope.launch {
-                    isSigningIn = true
-                    try {
-                        val task = com.google.android.gms.auth.api.signin.GoogleSignIn.getSignedInAccountFromIntent(result.data)
-                        val account = task.getResult(com.google.android.gms.common.api.ApiException::class.java)
-                        val idToken = account.idToken
-                        if (idToken != null) {
-                            exchangeGoogleTokenSuspend(idToken) { success ->
-                                if (success) {
-                                    val email = tokenStore.getUserEmail()
-                                    if (!email.isNullOrBlank()) {
-                                        com.fundocareer.app.core.jobalerts.JobAlertLifecycle.onLogin(context, email, "")
-                                    }
-                                    onLoginSuccess()
-                                } else {
-                                    android.widget.Toast.makeText(context, "Sign-in failed", android.widget.Toast.LENGTH_LONG).show()
-                                }
-                            }
-                        } else {
-                            android.widget.Toast.makeText(context, "Sign-in failed: no ID token", android.widget.Toast.LENGTH_SHORT).show()
-                        }
-                    } catch (e: com.google.android.gms.common.api.ApiException) {
-                        if (e.statusCode != 12501) {
-                            android.widget.Toast.makeText(context, "Sign-in cancelled", android.widget.Toast.LENGTH_SHORT).show()
-                        }
-                    } catch (e: Exception) {
-                        android.widget.Toast.makeText(context, "Sign-in error: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
-                    } finally {
-                        isSigningIn = false
-                    }
-                }
-            }
-        }
-
-    val scrollState = rememberScrollState()
-    Box(modifier, contentAlignment = Alignment.Center) {
-        Column(
-            modifier = Modifier.verticalScroll(scrollState).fillMaxWidth().padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.large,
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Icon(Icons.Default.Notifications, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.height(12.dp))
-                    Text("Sign in to use job search", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "Your job search settings will appear here after login.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                    )
-                    Spacer(Modifier.height(20.dp))
-                    Button(
-                        onClick = {
-                            googleSignInClient.signOut().addOnCompleteListener {
-                                val signInIntent = googleSignInClient.signInIntent
-                                googleSignInLauncher.launch(signInIntent)
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                        enabled = !isSigningIn,
-                        shape = MaterialTheme.shapes.medium,
-                    ) {
-                        if (isSigningIn) {
-                            CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                        } else {
-                            Text("Sign in with Google", fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
 
 // ================================================================
 // Helpers
 // ================================================================
+
+private fun statusLabel(status: SchedulerDisplayStatus): String = when (status) {
+    SchedulerDisplayStatus.Active -> "Active"
+    SchedulerDisplayStatus.Paused -> "Paused"
+    SchedulerDisplayStatus.WaitingForNextRun -> "Waiting for next run"
+    SchedulerDisplayStatus.BackendUnreachable -> "Backend unreachable"
+    SchedulerDisplayStatus.EmailFailed -> "Email failed"
+    SchedulerDisplayStatus.OtherDeviceActive -> "Another device active"
+    SchedulerDisplayStatus.Stopped -> "Stopped"
+    SchedulerDisplayStatus.Error -> "Error"
+    SchedulerDisplayStatus.Loading -> "..."
+}
+
+private fun statusColor(status: SchedulerDisplayStatus): androidx.compose.ui.graphics.Color = when (status) {
+    SchedulerDisplayStatus.Active, SchedulerDisplayStatus.WaitingForNextRun -> FcGreen
+    SchedulerDisplayStatus.Paused, SchedulerDisplayStatus.BackendUnreachable, SchedulerDisplayStatus.OtherDeviceActive -> FcAmber
+    SchedulerDisplayStatus.EmailFailed, SchedulerDisplayStatus.Stopped, SchedulerDisplayStatus.Error -> FcRed
+    SchedulerDisplayStatus.Loading -> FcSlate500
+}
 
 private fun Context.findActivity(): android.app.Activity? {
     var ctx = this

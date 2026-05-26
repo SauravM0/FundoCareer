@@ -1,7 +1,6 @@
 package com.fundocareer.app.core.jobs
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,7 +51,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
-import android.util.Log
 import com.fundocareer.app.core.jobalerts.OverallReliability
 import com.fundocareer.app.core.jobalerts.ui.theme.FcAmber
 import com.fundocareer.app.core.jobalerts.ui.theme.FcAmberLight
@@ -60,6 +58,7 @@ import com.fundocareer.app.core.jobalerts.ui.theme.FcGreen
 import com.fundocareer.app.core.jobalerts.ui.theme.FcGreenLight
 import com.fundocareer.app.core.jobalerts.ui.theme.FcRed
 import com.fundocareer.app.core.jobalerts.ui.theme.FcRedLight
+import com.fundocareer.app.core.logging.FcLog
 import kotlinx.coroutines.launch
 
 private val TABS = listOf("Job Search", "History")
@@ -74,7 +73,9 @@ fun JobsPageScreen(onBack: () -> Unit) {
     val reliabilityStatus by viewModel.reliabilityStatus.collectAsState()
 
     LaunchedEffect(pagerState.currentPage) {
-        Log.i("JobsPageScreen", "scheduler tab changed: ${TABS[pagerState.currentPage]}")
+        FcLog.i(FcLog.TAG_APP, "Tab changed", mapOf(
+            "tab" to TABS[pagerState.currentPage],
+        ))
     }
 
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -105,6 +106,7 @@ fun JobsPageScreen(onBack: () -> Unit) {
                             OverallReliability.OPTIMIZED -> Triple("Optimized", FcGreenLight, FcGreen)
                             OverallReliability.LIMITED -> Triple("Limited", FcAmberLight, FcAmber)
                             OverallReliability.NEEDS_SETUP -> Triple("Needs setup", FcRedLight, FcRed)
+                            OverallReliability.LOCKED -> Triple("Locked", FcRedLight, FcRed)
                         }
                         Box(
                             Modifier
@@ -117,6 +119,7 @@ fun JobsPageScreen(onBack: () -> Unit) {
                                     OverallReliability.OPTIMIZED -> Icons.Default.CheckCircle
                                     OverallReliability.LIMITED -> Icons.Default.Info
                                     OverallReliability.NEEDS_SETUP -> Icons.Default.Warning
+                                    OverallReliability.LOCKED -> Icons.Default.Warning
                                 }
                                 Icon(icon, null, Modifier.size(14.dp), tint = fgColor)
                                 Spacer(Modifier.width(4.dp))
@@ -183,11 +186,9 @@ fun JobsPageScreen(onBack: () -> Unit) {
 @Composable
 private fun HistoryTab(viewModel: JobsViewModel) {
     val uiState by viewModel.uiState.collectAsState()
-    if (uiState.isLoading) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(modifier = Modifier.size(40.dp), strokeWidth = 3.dp)
-        }
-    } else {
-        HistorySection(timeline = uiState.timeline)
-    }
+    HistorySection(
+        timeline = uiState.timeline,
+        isLoading = uiState.isLoading,
+        onRefresh = { viewModel.reload() },
+    )
 }

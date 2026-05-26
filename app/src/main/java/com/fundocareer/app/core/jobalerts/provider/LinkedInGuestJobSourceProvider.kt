@@ -1,11 +1,13 @@
 package com.fundocareer.app.core.jobalerts.provider
 
-import android.util.Log
 import com.fundocareer.app.core.jobalerts.JobAlertDefaults
 import com.fundocareer.app.core.jobalerts.JobSearchCriteria
 import com.fundocareer.app.core.jobalerts.JobSearchError
 import com.fundocareer.app.core.jobalerts.JobSearchResult
 import com.fundocareer.app.core.jobalerts.ParsedJob
+import com.fundocareer.app.core.logging.FcLog
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -20,7 +22,6 @@ class LinkedInGuestJobSourceProvider(
 
     companion object {
         const val SOURCE = "LINKEDIN"
-        private const val TAG = "LinkedInJobProvider"
         private const val SEARCH_URL = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search"
 
         private const val TIMEOUT_SECONDS = 30L
@@ -57,7 +58,11 @@ class LinkedInGuestJobSourceProvider(
     override val sourceName: String get() = SOURCE
 
     override suspend fun search(criteria: JobSearchCriteria): JobSearchResult {
-        Log.i(TAG, "search: role=${criteria.role}, location=${criteria.location}, experience=${criteria.experience}")
+        FcLog.i(FcLog.TAG_WORKER, "LinkedIn search started", mapOf(
+            "role" to criteria.role,
+            "location" to criteria.location,
+            "experience" to criteria.experience,
+        ))
 
         val allJobs = mutableListOf<ParsedJob>()
         var start = 0
@@ -66,11 +71,13 @@ class LinkedInGuestJobSourceProvider(
 
         while (start < maxResults) {
             val url = buildUrl(criteria, start, pageSize)
-            Log.i(TAG, "Fetching LinkedIn guest jobs with params: ${url.substringAfter('?')}")
 
             val result = fetchPage(url)
             if (result.error != null) {
-                Log.e(TAG, "Page fetch error: ${result.error}")
+                FcLog.e(FcLog.TAG_WORKER, "LinkedIn page fetch error", null, mapOf(
+                    "start" to start,
+                    "error" to result.error?.toString(),
+                ))
                 return if (allJobs.isNotEmpty()) {
                     JobSearchResult(jobs = allJobs, source = SOURCE)
                 } else {
@@ -79,28 +86,39 @@ class LinkedInGuestJobSourceProvider(
             }
 
             if (result.jobs.isEmpty()) {
-                Log.d(TAG, "No more jobs at start=$start")
+                FcLog.d(FcLog.TAG_WORKER, "No more LinkedIn jobs", mapOf(
+                    "start" to start,
+                ))
                 break
             }
 
             val before = allJobs.size
             allJobs.addAll(result.jobs)
-            Log.d(TAG, "Added ${result.jobs.size} jobs (total=${allJobs.size}, new=${allJobs.size - before})")
+            FcLog.d(FcLog.TAG_WORKER, "LinkedIn page added", mapOf(
+                "batchSize" to result.jobs.size,
+                "total" to allJobs.size,
+            ))
 
             if (result.jobs.size < pageSize) {
-                Log.d(TAG, "Last page (returned ${result.jobs.size} < $pageSize)")
+                FcLog.d(FcLog.TAG_WORKER, "Last LinkedIn page reached", mapOf(
+                    "returned" to result.jobs.size,
+                    "pageSize" to pageSize,
+                ))
                 break
             }
 
             start += pageSize
         }
 
-        Log.i(TAG, "Search complete: ${allJobs.size} total jobs")
+        FcLog.i(FcLog.TAG_WORKER, "LinkedIn search complete", mapOf(
+            "totalJobs" to allJobs.size,
+        ))
         return JobSearchResult(jobs = allJobs, source = SOURCE)
     }
 
     private suspend fun fetchPage(url: String): JobSearchResult {
-        return try {
+        return withContext(Dispatchers.IO) {
+            try {
             val request = Request.Builder()
                 .url(url)
                 .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36")
@@ -115,39 +133,46 @@ class LinkedInGuestJobSourceProvider(
             val body = response.body?.string() ?: ""
             val code = response.code
 
-            Log.d(TAG, "HTTP $code | body length=${body.length}")
+            FcLog.d(FcLog.TAG_WORKER, "LinkedIn fetch response", mapOf(
+                "httpCode" to code,
+                "bodyLength" to body.length,
+            ))
 
             when {
                 code == 429 -> {
-                    Log.w(TAG, "Rate limited (HTTP 429)")
+                    FcLog.w(FcLog.TAG_WORKER, "LinkedIn rate limited (HTTP 429)")
                     JobSearchResult(
                         jobs = emptyList(), source = SOURCE,
                         error = JobSearchError.RateLimited, isRateLimited = true
                     )
                 }
                 code in 400..499 -> {
-                    Log.w(TAG, "Client error HTTP $code")
+                    FcLog.w(FcLog.TAG_WORKER, "LinkedIn client error", mapOf(
+                        "httpCode" to code,
+                    ))
                     JobSearchResult(
                         jobs = emptyList(), source = SOURCE,
                         error = JobSearchError.HttpError(code)
                     )
                 }
                 code !in 200..299 -> {
-                    Log.w(TAG, "Server error HTTP $code")
+                    FcLog.w(FcLog.TAG_WORKER, "LinkedIn server error", mapOf(
+                        "httpCode" to code,
+                    ))
                     JobSearchResult(
                         jobs = emptyList(), source = SOURCE,
                         error = JobSearchError.HttpError(code)
                     )
                 }
                 body.isBlank() -> {
-                    Log.w(TAG, "Empty response body")
+                    FcLog.w(FcLog.TAG_WORKER, "LinkedIn empty response body")
                     JobSearchResult(
                         jobs = emptyList(), source = SOURCE,
                         error = JobSearchError.EmptyResponse
                     )
                 }
                 isBlockedPage(body) -> {
-                    Log.w(TAG, "Block/redirect page detected")
+                    FcLog.w(FcLog.TAG_WORKER, "LinkedIn block/redirect page detected")
                     JobSearchResult(
                         jobs = emptyList(), source = SOURCE,
                         error = JobSearchError.Blocked
@@ -155,16 +180,21 @@ class LinkedInGuestJobSourceProvider(
                 }
                 else -> {
                     val jobs = parseJobs(body)
-                    Log.d(TAG, "Parsed ${jobs.size} jobs from page")
+                    FcLog.d(FcLog.TAG_WORKER, "LinkedIn parsed jobs", mapOf(
+                        "count" to jobs.size,
+                    ))
                     JobSearchResult(jobs = jobs, source = SOURCE)
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Network error: ${e.message}", e)
+            FcLog.e(FcLog.TAG_WORKER, "LinkedIn network error", e, mapOf(
+                "error" to e.message,
+            ))
             JobSearchResult(
                 jobs = emptyList(), source = SOURCE,
                 error = JobSearchError.NetworkError(e.message ?: "Unknown network error")
             )
+        }
         }
     }
 
@@ -185,10 +215,10 @@ class LinkedInGuestJobSourceProvider(
         val doc: Document = Jsoup.parse(html)
         val cards = doc.select("div.base-card, div.job-search-card, div[class*='base-card'], li[class*='jobs-search-results__list-item'] article")
         if (cards.isEmpty()) {
-            Log.d(TAG, "No card elements found with primary selectors, trying fallback")
+            FcLog.d(FcLog.TAG_WORKER, "No LinkedIn card elements found, trying fallback")
             val fallbackCards = doc.select("div[class*='search-result']")
             if (fallbackCards.isEmpty()) {
-                Log.d(TAG, "Fallback selectors also empty. Body preview: ${html.take(500)}")
+                FcLog.d(FcLog.TAG_WORKER, "Fallback selectors also empty")
                 return emptyList()
             }
             return parseFallbackCards(fallbackCards)
@@ -200,12 +230,14 @@ class LinkedInGuestJobSourceProvider(
                 val job = parseSingleCard(card)
                 if (job != null) jobs.add(job)
             } catch (e: Exception) {
-                Log.w(TAG, "Skipping card parse error: ${e.message}")
+                FcLog.w(FcLog.TAG_WORKER, "Skipping LinkedIn card parse error", mapOf(
+                    "error" to e.message,
+                ))
             }
         }
 
         if (jobs.isEmpty() && cards.isNotEmpty()) {
-            Log.w(TAG, "Cards found but zero parsed. Trying fallback per-card approach.")
+            FcLog.w(FcLog.TAG_WORKER, "Cards found but zero parsed, trying fallback")
             return parseFallbackCards(cards)
         }
 
@@ -299,7 +331,9 @@ class LinkedInGuestJobSourceProvider(
                     url = url, postedDate = postedDate, fingerprint = fingerprint
                 ))
             } catch (e: Exception) {
-                Log.w(TAG, "Skipping malformed LinkedIn job card: ${e.message}")
+                FcLog.w(FcLog.TAG_WORKER, "Skipping malformed LinkedIn job card", mapOf(
+                    "error" to e.message,
+                ))
             }
         }
         return jobs

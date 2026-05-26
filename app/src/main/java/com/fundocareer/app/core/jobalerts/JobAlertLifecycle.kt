@@ -2,26 +2,15 @@ package com.fundocareer.app.core.jobalerts
 
 import android.app.Activity
 import android.content.Context
-import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
+import com.fundocareer.app.core.logging.FcLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-/**
- * Logout must not stop job alert scheduler. Only user Stop Scheduler action can stop it.
- *
- * - onLogout / showLogoutWarning: UI-only cleanup, scheduler state is NEVER touched.
- * - onUserStoppedScheduler: the ONLY path for scheduler cancellation (reserved for Stop button).
- */
 object JobAlertLifecycle {
-    private const val TAG = "JobAlertLifecycle"
 
-    /**
-     * Logout must not stop job alert scheduler. Only user Stop Scheduler action can stop it.
-     * This dialog explicitly tells the user the scheduler survives logout.
-     */
     @JvmStatic
     fun showLogoutWarning(activity: Activity, userEmail: String, onConfirmed: () -> Unit) {
         AlertDialog.Builder(activity)
@@ -31,7 +20,9 @@ object JobAlertLifecycle {
                 "Your settings and history will remain saved."
             )
             .setPositiveButton("Logout") { _, _ ->
-                Log.i(TAG, "Logout confirmed for $userEmail")
+                FcLog.i(FcLog.TAG_SCHEDULER, "Logout confirmed", mapOf(
+                    "userEmail" to FcLog.maskEmail(userEmail),
+                ))
                 performLogoutCleanup(activity, userEmail, null)
                 onConfirmed()
             }
@@ -41,15 +32,16 @@ object JobAlertLifecycle {
 
     @JvmStatic
     fun onLogin(context: Context, newEmail: String, previousEmail: String?) {
-        Log.i(TAG, "onLogin: newEmail=$newEmail, previousEmail=$previousEmail")
+        FcLog.i(FcLog.TAG_SCHEDULER, "onLogin", mapOf(
+            "newEmail" to FcLog.maskEmail(newEmail),
+            "previousEmail" to previousEmail?.let { FcLog.maskEmail(it) },
+        ))
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val repo = JobAlertRepository.getInstance(context)
 
                 if (newEmail == previousEmail) {
                     val wasPaused = repo.isSchedulerPausedDueToLogout(newEmail)
-                    // Scheduler must be started only from Native Jobs page Save & Start flow.
-                    // Same-account resume does NOT auto-start the scheduler.
                     if (wasPaused) {
                         repo.markSchedulerResumed(newEmail)
                         repo.resumePausedDueToLogout(newEmail)
@@ -60,48 +52,47 @@ object JobAlertLifecycle {
                                 Toast.LENGTH_SHORT
                             ).show()
                         }
-                        Log.i(TAG, "Same-account auto-resume for $newEmail")
+                        FcLog.i(FcLog.TAG_SCHEDULER, "Same-account auto-resume", mapOf(
+                            "userEmail" to FcLog.maskEmail(newEmail),
+                        ))
                         return@launch
                     }
                 }
 
-                // Scheduler must be started only from Native Jobs page Save & Start flow.
-                // Login does NOT auto-start the scheduler.
                 if (previousEmail != null && newEmail != previousEmail) {
-                    Log.i(TAG, "Different account login detected: previous=$previousEmail, new=$newEmail. Preserving local scheduler rows; explicit Stop Scheduler is the only local delete path.")
+                    FcLog.i(FcLog.TAG_SCHEDULER, "Different account login detected", mapOf(
+                        "previous" to FcLog.maskEmail(previousEmail),
+                        "newEmail" to FcLog.maskEmail(newEmail),
+                    ))
                 } else if (previousEmail == null) {
-                    Log.i(TAG, "First-ever login for $newEmail")
+                    FcLog.i(FcLog.TAG_SCHEDULER, "First-ever login", mapOf(
+                        "userEmail" to FcLog.maskEmail(newEmail),
+                    ))
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "onLogin error", e)
+                FcLog.e(FcLog.TAG_SCHEDULER, "onLogin error", e)
             }
         }
     }
 
-    /**
-     * Logout must not stop job alert scheduler. Only user Stop Scheduler action can stop it.
-     * This function is intentionally a no-op for scheduler state.
-     */
     @JvmStatic
     fun onLogout(context: Context, userEmail: String?) {
         if (userEmail.isNullOrBlank()) return
-        Log.i(TAG, "onLogout called for $userEmail — scheduler continues running (logout does not stop scheduler)")
+        FcLog.i(FcLog.TAG_SCHEDULER, "onLogout called - scheduler continues running", mapOf(
+            "userEmail" to FcLog.maskEmail(userEmail),
+        ))
     }
 
-    /**
-     * Reserved for the explicit Stop Scheduler button flow.
-     * Only user Stop Scheduler action can stop it — logout must NOT call this.
-     */
     @JvmStatic
     fun onUserStoppedScheduler(context: Context, userEmail: String) {
-        Log.i(TAG, "onUserStoppedScheduler: $userEmail — scheduler explicitly stopped by user")
+        FcLog.i(FcLog.TAG_SCHEDULER, "onUserStoppedScheduler - scheduler explicitly stopped by user", mapOf(
+            "userEmail" to FcLog.maskEmail(userEmail),
+        ))
     }
 
-    /**
-     * Logout must not stop job alert scheduler. Only user Stop Scheduler action can stop it.
-     * This function only handles shared UI/logout side-effects, never scheduler state.
-     */
     private fun performLogoutCleanup(context: Context, userEmail: String, authToken: String?) {
-        Log.i(TAG, "Logout confirmed for $userEmail — scheduler continues running")
+        FcLog.i(FcLog.TAG_SCHEDULER, "Logout cleanup - scheduler continues running", mapOf(
+            "userEmail" to FcLog.maskEmail(userEmail),
+        ))
     }
 }

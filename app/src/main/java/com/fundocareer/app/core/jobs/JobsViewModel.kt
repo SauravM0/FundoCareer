@@ -1,7 +1,6 @@
 package com.fundocareer.app.core.jobs
 
 import android.app.Application
-import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.fundocareer.app.BuildConfig
@@ -16,9 +15,12 @@ import com.fundocareer.app.core.jobalerts.provider.IntervalJobAlertScheduler
 import com.fundocareer.app.core.jobalerts.provider.JobAlertApiClient
 import com.fundocareer.app.core.jobalerts.provider.JobAlertApiClient.EmailHistoryItem
 import com.fundocareer.app.core.jobalerts.provider.JobAlertApiClient.TimelineEvent
+import com.fundocareer.app.core.jobalerts.JobAlertDefaults
+import com.fundocareer.app.core.jobalerts.provider.JobAlertApiClient.TimelineEventMetadata
 import com.fundocareer.app.core.jobalerts.provider.JobAlertDeviceIdentityProvider
 import com.fundocareer.app.core.jobalerts.provider.JobAlertPendingSyncStore
 import com.fundocareer.app.core.jobalerts.provider.retryPendingSync
+import com.fundocareer.app.core.logging.FcLog
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -73,21 +75,9 @@ data class JobsUiState(
     val isSaving: Boolean = false,
     val isRetryingSetupEmail: Boolean = false,
     val showStopConfirmDialog: Boolean = false,
-    val diagnostics: SchedulerDiagnosticsState = SchedulerDiagnosticsState(),
-)
-
-data class SchedulerDiagnosticsState(
-    val apiBaseUrl: String = BuildConfig.API_BASE_URL,
-    val loggedInEmail: String = "",
-    val backendPingStatus: String = "Not tested",
-    val localSchedulerState: String = "Unknown",
-    val activeDeviceBackendStatus: String = "Unknown",
-    val lastWorkerRunTime: String = "Never",
-    val lastWorkerResult: String = "None",
-    val lastEmailAttempt: String = "Never",
-    val lastErrorCode: String? = null,
-    val lastAction: String? = null,
-    val busy: Boolean = false,
+    val showTakeoverConfirmDialog: Boolean = false,
+    val showReliabilitySetup: Boolean = false,
+    val reliabilitySetupStatus: JobAlertReliabilityStatus? = null,
 )
 
 data class FormState(
@@ -100,7 +90,7 @@ data class FormState(
     val skills: String = "",
     val company: String = "",
     val datePosted: String = "",
-    val intervalMinutes: Long = 60L,
+    val intervalMinutes: Long = JobAlertDefaults.DEFAULT_INTERVAL_MINUTES,
     val reportFormat: String = "html",
     val showAdvanced: Boolean = false,
 )
@@ -179,7 +169,10 @@ class JobsViewModel(application: Application) : AndroidViewModel(application) {
 
                 val activePref = repository.getActivePreferenceNow(email)
                 val ds = repository.getSchedulerState(email)
-                Log.i(TAG, "preference loaded: userEmail=$email, hasActive=${activePref != null}, schedulerState=${ds?.schedulerEnabled}")
+                FcLog.i(FcLog.TAG_SCHEDULER, "Preference loaded", mapOf(
+                    "hasActive" to (activePref != null),
+                    "hasSchedulerState" to (ds != null),
+                ))
 
                 var status = deriveSchedulerStatus(activePref, ds, token)
 
@@ -202,8 +195,6 @@ class JobsViewModel(application: Application) : AndroidViewModel(application) {
                 var historyItems = emptyList<EmailHistoryItem>()
                 var timelineEvents = emptyList<TimelineEvent>()
                 var deviceInfo = ActiveDeviceInfo()
-                val latestRun = repository.getLatestRunByUser(email)
-                val lastEmail = activePref?.let { repository.getLastEmailSent(it.id) }
 
                 if (token.isNotBlank()) {
                     val apiClient = JobAlertApiClient(token)
@@ -212,22 +203,45 @@ class JobsViewModel(application: Application) : AndroidViewModel(application) {
                         if (histResult.success) historyItems = histResult.history.takeLast(5)
                         else historyItems = prevState.history
                     } catch (e: Exception) {
-                        Log.w(TAG, "getEmailHistory failed during load: userEmail=$email, error=${e.message}", e)
+                        FcLog.w(FcLog.TAG_NETWORK, "getEmailHistory failed during load", mapOf(
+                            "error" to e.message,
+                        ))
                         historyItems = prevState.history
                     }
 
                     try {
                         val timelineResult = apiClient.getUserTimeline()
                         if (timelineResult.success) {
-                            timelineEvents = timelineResult.timeline.filter { t ->
-                                t.type in knownPositiveTypes
-                            }
+                            timelineEvents = timelineResult.timeline.toMutableList()
+                            FcLog.i(FcLog.TAG_HISTORY, "Timeline loaded", mapOf(
+                                "count" to timelineEvents.size,
+                            ))
                         } else {
                             timelineEvents = prevState.timeline
                         }
                     } catch (e: Exception) {
-                        Log.w(TAG, "getUserTimeline failed during load: userEmail=$email, error=${e.message}", e)
+                        FcLog.w(FcLog.TAG_HISTORY, "getUserTimeline failed during load", mapOf(
+                            "error" to e.message,
+                        ))
                         timelineEvents = prevState.timeline
+                    }
+
+                    if (activePref != null && !activePref.setupConfirmationSent && !activePref.setupConfirmationError.isNullOrBlank()) {
+                        val syntheticEvent = TimelineEvent(
+                            type = "email_failed",
+                            timestamp = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).format(Date(activePref.updatedAt)),
+                            title = "Setup confirmation email failed",
+                            description = activePref.setupConfirmationError ?: "Unknown error",
+                            status = "failed",
+                            runId = null,
+                            metadata = TimelineEventMetadata(
+                                errorMessage = activePref.setupConfirmationError,
+                            ),
+                        )
+                        timelineEvents = listOf(syntheticEvent) + timelineEvents
+                        FcLog.w(FcLog.TAG_HISTORY, "Setup email failure appended to timeline", mapOf(
+                            "error" to activePref.setupConfirmationError,
+                        ))
                     }
 
                     try {
@@ -260,13 +274,39 @@ class JobsViewModel(application: Application) : AndroidViewModel(application) {
                             )
                             else -> ActiveDeviceInfo(loading = false)
                         }
-                        Log.i(TAG, "backend connectivity state: activeDeviceSuccess=${activeResult.success}, currentDevice=${activeResult.isCurrentDeviceActive}, hasRemote=${activeResult.activeDevice != null}")
+                        FcLog.i(FcLog.TAG_ACTIVE_DEVICE, "Backend connectivity state", mapOf(
+                            "success" to activeResult.success,
+                            "currentDevice" to activeResult.isCurrentDeviceActive,
+                            "hasRemote" to (activeResult.activeDevice != null),
+                        ))
                         if (activeResult.activeDevice != null && !activeResult.isCurrentDeviceActive) {
                             status = SchedulerDisplayStatus.OtherDeviceActive
+                            val activeDto = activeResult.activeDevice
+                            repository.saveSchedulerState(
+                                (ds ?: DeviceSchedulerStateEntity(
+                                    id = UUID.randomUUID().toString(),
+                                    userEmail = email,
+                                )).copy(
+                                    isThisDeviceActive = false,
+                                    activeDeviceName = activeDto.deviceName,
+                                    activeDeviceLastSeen = activeDto.activeDeviceLastSeenAt,
+                                    takeoverRequired = ds?.takeoverRequired ?: false,
+                                    updatedAt = System.currentTimeMillis(),
+                                )
+                            )
+                        } else if (activeResult.isCurrentDeviceActive && ds != null) {
+                            repository.saveSchedulerState(
+                                ds.copy(
+                                    isThisDeviceActive = true,
+                                    takeoverRequired = false,
+                                    updatedAt = System.currentTimeMillis(),
+                                )
+                            )
                         }
                     } catch (e: Exception) {
-                        Log.w(TAG, "getActiveDevice failed during load: userEmail=$email, error=${e.message}", e)
-                        Log.w(TAG, "backend connectivity state: activeDeviceUnavailable")
+                        FcLog.w(FcLog.TAG_ACTIVE_DEVICE, "getActiveDevice failed during load", mapOf(
+                            "error" to e.message,
+                        ))
                         if (activePref != null) status = SchedulerDisplayStatus.BackendUnreachable
                         deviceInfo = prevState.activeDeviceInfo
                     }
@@ -274,7 +314,9 @@ class JobsViewModel(application: Application) : AndroidViewModel(application) {
                     try {
                         retryPendingSync(context, token)
                     } catch (e: Exception) {
-                        Log.w(TAG, "retryPendingSync failed during load: userEmail=$email, error=${e.message}", e)
+                        FcLog.w(FcLog.TAG_ACTIVE_DEVICE, "retryPendingSync failed during load", mapOf(
+                            "error" to e.message,
+                        ))
                     }
                 }
 
@@ -289,21 +331,12 @@ class JobsViewModel(application: Application) : AndroidViewModel(application) {
                     activeDeviceInfo = deviceInfo,
                     history = historyItems,
                     timeline = timelineEvents,
-                    diagnostics = diagnosticsFrom(
-                        email = email,
-                        activePref = activePref,
-                        schedulerState = ds,
-                        deviceInfo = deviceInfo,
-                        latestRun = latestRun,
-                        lastEmail = lastEmail,
-                        previous = _uiState.value.diagnostics,
-                    ),
                 )
                 refreshReliability()
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 _uiState.value = _uiState.value.copy(isLoading = false, error = e.message)
-                Log.e(TAG, "loadData failed", e)
+                FcLog.e(FcLog.TAG_SCHEDULER, "loadData failed", e)
             }
         }
     }
@@ -353,7 +386,7 @@ class JobsViewModel(application: Application) : AndroidViewModel(application) {
 
     fun savePreference() {
         if (_uiState.value.isSaving) {
-            Log.w(TAG, "savePreference: already saving, ignoring duplicate call")
+            FcLog.w(FcLog.TAG_SCHEDULER, "savePreference: already saving, ignoring duplicate call")
             return
         }
 
@@ -449,10 +482,27 @@ class JobsViewModel(application: Application) : AndroidViewModel(application) {
                         deviceActivated = activation.success
                         if (!deviceActivated) {
                             if (activation.errorCode == "ACTIVE_DEVICE_EXISTS") {
+                                val activeDeviceName = activation.activeDevice?.deviceName
+                                val activeDeviceLastSeen = activation.activeDevice?.activeDeviceLastSeenAt
+                                repository.saveSchedulerState(
+                                    (repository.getSchedulerState(email) ?: DeviceSchedulerStateEntity(
+                                        id = UUID.randomUUID().toString(),
+                                        userEmail = email,
+                                    )).copy(
+                                        schedulerEnabled = true,
+                                        pausedDueToLogout = false,
+                                        isThisDeviceActive = false,
+                                        activeDeviceName = activeDeviceName,
+                                        activeDeviceLastSeen = activeDeviceLastSeen,
+                                        takeoverRequired = true,
+                                        updatedAt = System.currentTimeMillis(),
+                                    )
+                                )
                                 _uiState.value = _uiState.value.copy(
                                     activeDeviceInfo = activation.activeDevice?.let { dto -> activeDeviceInfoFromDto(dto) }
                                         ?: _uiState.value.activeDeviceInfo,
                                     schedulerStatus = SchedulerDisplayStatus.OtherDeviceActive,
+                                    showTakeoverConfirmDialog = true,
                                 )
                             } else {
                                 JobAlertPendingSyncStore(context).recordPendingActivation(id)
@@ -464,10 +514,24 @@ class JobsViewModel(application: Application) : AndroidViewModel(application) {
                                 activation.errorCode ?: "BACKEND_ACTIVATION_FAILED",
                             )
                         } else {
+                            repository.saveSchedulerState(
+                                (repository.getSchedulerState(email) ?: DeviceSchedulerStateEntity(
+                                    id = UUID.randomUUID().toString(),
+                                    userEmail = email,
+                                )).copy(
+                                    schedulerEnabled = true,
+                                    pausedDueToLogout = false,
+                                    isThisDeviceActive = true,
+                                    takeoverRequired = false,
+                                    updatedAt = System.currentTimeMillis(),
+                                )
+                            )
                             updateSaveFlow(SaveFlowPhase.BackendConnected, SaveFlowStatus.Done)
                         }
                     } catch (e: Exception) {
-                        Log.w(TAG, "activateDevice failed during save: userEmail=$email, endpoint=/api/scheduler/active-device/activate, error=${e.message}", e)
+                        FcLog.w(FcLog.TAG_ACTIVE_DEVICE, "activateDevice failed during save", mapOf(
+                            "error" to e.message,
+                        ))
                         JobAlertPendingSyncStore(context).recordPendingActivation(id)
                         updateSaveFlow(SaveFlowPhase.BackendConnected, SaveFlowStatus.Failed, e.message, "BACKEND_ACTIVATION_EXCEPTION")
                     }
@@ -475,7 +539,7 @@ class JobsViewModel(application: Application) : AndroidViewModel(application) {
                     updateSaveFlow(SaveFlowPhase.BackendConnected, SaveFlowStatus.Skipped, "No auth token available.")
                 }
 
-                val shouldSendSetupEmail = isFirstCreation && !entity.setupConfirmationSent
+                val shouldSendSetupEmail = isFirstCreation && !entity.setupConfirmationSent && deviceActivated
                 if (shouldSendSetupEmail && apiClient != null) {
                     sendSetupConfirmationEmailForPreference(apiClient, entity)
                 } else {
@@ -510,7 +574,7 @@ class JobsViewModel(application: Application) : AndroidViewModel(application) {
                 refreshAfterSave(email, token)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isSaving = false, error = "Failed to save: ${e.message}")
-                Log.e(TAG, "savePreference failed", e)
+                FcLog.e(FcLog.TAG_SCHEDULER, "savePreference failed", e)
             }
         }
     }
@@ -538,141 +602,9 @@ class JobsViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: Exception) {
                 updateSaveFlow(SaveFlowPhase.SetupEmailFailed, SaveFlowStatus.Failed, e.message, "SETUP_EMAIL_RETRY_EXCEPTION")
                 _uiState.value = _uiState.value.copy(isRetryingSetupEmail = false)
-                Log.e(TAG, "retrySetupConfirmationEmail failed", e)
+                FcLog.e(FcLog.TAG_EMAIL, "retrySetupConfirmationEmail failed", e)
             }
         }
-    }
-
-    fun testBackendPing() {
-        runDiagnosticsAction("Testing backend ping") { state, apiClient, _ ->
-            val result = apiClient.pingBackend()
-            _uiState.value = _uiState.value.copy(
-                diagnostics = _uiState.value.diagnostics.copy(
-                    backendPingStatus = if (result.success) "Healthy (${result.status ?: "ok"})" else "Failed",
-                    lastErrorCode = result.errorCode,
-                    lastAction = result.error ?: "Backend ping completed",
-                )
-            )
-        }
-    }
-
-    fun verifyActiveDeviceDiagnostic() {
-        runDiagnosticsAction("Verifying active device") { state, apiClient, pref ->
-            val deviceId = identityProvider.getDeviceIdForApi()
-            val result = apiClient.verifyActiveDevice(deviceId, pref?.id)
-            val errorCode = if (result.success && !result.canSend) "NOT_ACTIVE_DEVICE" else null
-            _uiState.value = _uiState.value.copy(
-                diagnostics = _uiState.value.diagnostics.copy(
-                    activeDeviceBackendStatus = when {
-                        result.canSend -> "Current device can send"
-                        result.success -> "Not active (${result.reason ?: "device_not_active"})"
-                        else -> "Verify failed"
-                    },
-                    lastErrorCode = errorCode,
-                    lastAction = result.error ?: "Active-device verify completed",
-                )
-            )
-        }
-    }
-
-    fun sendSetupTestEmail() {
-        runDiagnosticsAction("Sending setup test email") { state, apiClient, pref ->
-            if (pref == null) {
-                updateDiagnosticOnly("No local scheduler preference to send setup email.", "NO_ACTIVE_PREFERENCE")
-                return@runDiagnosticsAction
-            }
-            val sent = sendSetupConfirmationEmailForPreference(apiClient, pref)
-            _uiState.value = _uiState.value.copy(
-                diagnostics = _uiState.value.diagnostics.copy(
-                    lastEmailAttempt = dateFormat.format(Date()),
-                    lastAction = if (sent) "Setup test email sent" else "Setup test email failed",
-                    lastErrorCode = if (sent) "EMAIL_SENT" else _uiState.value.diagnostics.lastErrorCode,
-                )
-            )
-        }
-    }
-
-    fun runSchedulerNow() {
-        val pref = _uiState.value.activePreference
-        if (pref == null) {
-            updateDiagnosticOnly("No local scheduler preference to run.", "NO_ACTIVE_PREFERENCE")
-            return
-        }
-        IntervalJobAlertScheduler.enqueueImmediateRun(context, pref.id, "DIAGNOSTIC_MANUAL")
-        _uiState.value = _uiState.value.copy(
-            diagnostics = _uiState.value.diagnostics.copy(
-                lastAction = "Immediate scheduler run queued",
-                lastErrorCode = null,
-            ),
-            saveFlowSteps = _uiState.value.saveFlowSteps + SaveFlowStep(
-                SaveFlowPhase.ImmediateRunQueued,
-                SaveFlowStatus.Done,
-                "Queued from developer diagnostics.",
-            ),
-        )
-    }
-
-    fun sendZeroJobTestEmail() {
-        runDiagnosticsAction("Sending zero-job test email") { state, apiClient, pref ->
-            if (pref == null) {
-                updateDiagnosticOnly("No local scheduler preference for zero-job email.", "NO_ACTIVE_PREFERENCE")
-                return@runDiagnosticsAction
-            }
-            val result = apiClient.sendJobAlertEmail(
-                to = state.userEmail,
-                preferenceId = pref.id,
-                preferenceName = pref.role,
-                newJobs = emptyList(),
-                allJobsCount = 0,
-                deviceId = identityProvider.getDeviceIdForApi(),
-                runId = "diagnostic-${UUID.randomUUID()}",
-            )
-            _uiState.value = _uiState.value.copy(
-                diagnostics = _uiState.value.diagnostics.copy(
-                    lastEmailAttempt = dateFormat.format(Date()),
-                    lastAction = if (result.success) "Zero-job test email sent" else (result.error ?: "Zero-job test email failed"),
-                    lastErrorCode = result.errorCode ?: if (result.success) "ZERO_JOB_EMAIL_SENT" else "EMAIL_SEND_FAILED",
-                )
-            )
-        }
-    }
-
-    private fun runDiagnosticsAction(
-        actionLabel: String,
-        block: suspend (JobsUiState, JobAlertApiClient, JobAlertPreferenceEntity?) -> Unit,
-    ) {
-        viewModelScope.launch {
-            val state = _uiState.value
-            val token = state.authToken.ifBlank { tokenStore.getAccessToken().orEmpty() }
-            if (token.isBlank()) {
-                updateDiagnosticOnly("Sign in again to run diagnostics.", "AUTH_REFRESH_FAILED")
-                return@launch
-            }
-            _uiState.value = state.copy(diagnostics = state.diagnostics.copy(busy = true, lastAction = actionLabel, lastErrorCode = null))
-            try {
-                block(state, JobAlertApiClient(token), state.activePreference)
-            } catch (e: Exception) {
-                Log.e(TAG, "diagnostic action failed: $actionLabel", e)
-                _uiState.value = _uiState.value.copy(
-                    diagnostics = _uiState.value.diagnostics.copy(
-                        lastAction = e.message ?: "Diagnostic action failed",
-                        lastErrorCode = "BACKEND_UNREACHABLE",
-                    )
-                )
-            } finally {
-                _uiState.value = _uiState.value.copy(diagnostics = _uiState.value.diagnostics.copy(busy = false))
-            }
-        }
-    }
-
-    private fun updateDiagnosticOnly(message: String, errorCode: String?) {
-        _uiState.value = _uiState.value.copy(
-            diagnostics = _uiState.value.diagnostics.copy(
-                lastAction = message,
-                lastErrorCode = errorCode,
-                busy = false,
-            )
-        )
     }
 
     private fun setSaveFlow(vararg steps: SaveFlowStep) {
@@ -701,8 +633,11 @@ class JobsViewModel(application: Application) : AndroidViewModel(application) {
         pref: JobAlertPreferenceEntity,
     ): Boolean {
         updateSaveFlow(SaveFlowPhase.SetupEmailSent, SaveFlowStatus.Running)
-        Log.i(TAG, "sendSetupConfirmationEmailForPreference: userEmail=${pref.userEmail}, preferenceId=${pref.id}, role=${pref.role}, location=${pref.location}")
-        Log.d(TAG, "sendSetupConfirmationEmailForPreference: intervalMinutes=${pref.intervalMinutes}, remote=${pref.remote}, skills=${pref.skills?.take(40)}")
+        FcLog.i(FcLog.TAG_EMAIL, "sendSetupConfirmationEmailForPreference", mapOf(
+            "preferenceId" to pref.id,
+            "role" to pref.role,
+            "location" to pref.location,
+        ))
         val result = apiClient.sendSetupConfirmationEmail(
             to = pref.userEmail,
             preferenceId = pref.id,
@@ -714,14 +649,17 @@ class JobsViewModel(application: Application) : AndroidViewModel(application) {
             datePosted = pref.datePosted,
             intervalMinutes = pref.intervalMinutes,
         )
-        Log.i(
-            TAG,
-            "Setup confirmation email result: userEmail=${pref.userEmail}, success=${result.success}, sent=${result.setupEmailSent}, errorCode=${result.errorCode}, error=${result.error?.take(200)}"
-        )
+        FcLog.i(FcLog.TAG_EMAIL, "Setup confirmation email result", mapOf(
+            "success" to result.success,
+            "sent" to result.setupEmailSent,
+            "errorCode" to result.errorCode,
+        ))
 
         return if (result.success && result.setupEmailSent) {
             val sentAt = System.currentTimeMillis()
-            Log.i(TAG, "Setup email confirmed sent for preferenceId=${pref.id}")
+            FcLog.i(FcLog.TAG_EMAIL, "Setup email confirmed sent", mapOf(
+                "preferenceId" to pref.id,
+            ))
             repository.markSetupConfirmationSent(pref.id, sentAt)
             updateSaveFlow(SaveFlowPhase.SetupEmailSent, SaveFlowStatus.Done)
             appendSetupEmailTimelineEvent()
@@ -733,7 +671,11 @@ class JobsViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             val errorMsg = result.error ?: "Setup email was not sent."
             val errorCode = result.errorCode ?: "SETUP_EMAIL_NOT_SENT"
-            Log.w(TAG, "Setup email NOT sent for preferenceId=${pref.id}. errorCode=$errorCode, error=${errorMsg}")
+            FcLog.w(FcLog.TAG_EMAIL, "Setup email NOT sent", mapOf(
+                "preferenceId" to pref.id,
+                "errorCode" to errorCode,
+                "error" to errorMsg,
+            ))
             repository.markSetupConfirmationFailed(pref.id, errorMsg, errorCode)
             updateSaveFlow(SaveFlowPhase.SetupEmailSent, SaveFlowStatus.Failed, errorMsg, errorCode)
             updateSaveFlow(SaveFlowPhase.SetupEmailFailed, SaveFlowStatus.Failed, errorMsg, errorCode)
@@ -746,7 +688,7 @@ class JobsViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun appendSetupEmailTimelineEvent() {
-        val isoFormat = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
+        val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
         val nowIso = isoFormat.format(Date(System.currentTimeMillis()))
         val setupEvent = TimelineEvent(
             type = "setup_email_sent",
@@ -778,17 +720,19 @@ class JobsViewModel(application: Application) : AndroidViewModel(application) {
                         val timelineResult = apiClient.getUserTimeline()
                         if (timelineResult.success) {
                             _uiState.value = _uiState.value.copy(
-                                timeline = timelineResult.timeline.filter { t ->
-                                    t.type in knownPositiveTypes
-                                }
+                                timeline = timelineResult.timeline
                             )
                         }
                     } catch (e: Exception) {
-                        Log.w(TAG, "timeline refresh failed after save: userEmail=$email, error=${e.message}", e)
+                        FcLog.w(FcLog.TAG_NETWORK, "Timeline refresh failed after save", mapOf(
+                            "error" to e.message,
+                        ))
                     }
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "refreshAfterSave failed", e)
+                FcLog.w(FcLog.TAG_SCHEDULER, "refreshAfterSave failed", mapOf(
+                    "error" to e.message,
+                ))
             }
         }
     }
@@ -808,6 +752,19 @@ class JobsViewModel(application: Application) : AndroidViewModel(application) {
                     ))
                     IntervalJobAlertScheduler.cancelScheduler(context, pref.id)
                 }
+                val schedulerState = repository.getSchedulerState(state.userEmail)
+                if (schedulerState != null) {
+                    repository.saveSchedulerState(
+                        schedulerState.copy(
+                            schedulerEnabled = false,
+                            isThisDeviceActive = false,
+                            takeoverRequired = false,
+                            activeDeviceName = null,
+                            activeDeviceLastSeen = null,
+                            updatedAt = System.currentTimeMillis(),
+                        )
+                    )
+                }
 
                 if (state.authToken.isNotBlank() && prefs.isNotEmpty()) {
                     try {
@@ -815,7 +772,9 @@ class JobsViewModel(application: Application) : AndroidViewModel(application) {
                         val apiClient = JobAlertApiClient(state.authToken)
                         apiClient.deactivateDevice(identity.deviceId, prefs.first().id)
                     } catch (e: Exception) {
-                        Log.w(TAG, "deactivateDevice failed during stop; queued pending sync: userEmail=${state.userEmail}, error=${e.message}", e)
+                        FcLog.w(FcLog.TAG_ACTIVE_DEVICE, "deactivateDevice failed during stop, queuing pending sync", mapOf(
+                            "error" to e.message,
+                        ))
                         JobAlertPendingSyncStore(context).recordPendingDeactivation(prefs.first().id)
                     }
                 }
@@ -832,7 +791,7 @@ class JobsViewModel(application: Application) : AndroidViewModel(application) {
                     error = "Failed to stop: ${e.message}",
                     showStopConfirmDialog = false,
                 )
-                Log.e(TAG, "stopScheduler failed", e)
+                FcLog.e(FcLog.TAG_SCHEDULER, "stopScheduler failed", e)
             }
         }
     }
@@ -865,6 +824,10 @@ class JobsViewModel(application: Application) : AndroidViewModel(application) {
                     )).copy(
                         schedulerEnabled = true,
                         pausedDueToLogout = false,
+                        isThisDeviceActive = true,
+                        takeoverRequired = false,
+                        activeDeviceName = null,
+                        activeDeviceLastSeen = null,
                         lastError = null,
                         nextScheduledRunAt = System.currentTimeMillis() + pref.intervalMinutes.coerceAtLeast(15L) * 60_000L,
                         updatedAt = System.currentTimeMillis(),
@@ -878,8 +841,15 @@ class JobsViewModel(application: Application) : AndroidViewModel(application) {
                 if (result.success) {
                     syncPreferenceSnapshot(apiClient, identity.deviceId, pref)
                     IntervalJobAlertScheduler.startSchedulerAfterSave(context, pref.id, pref.intervalMinutes, true)
+
+                    val shouldSendSetupEmail = !pref.setupConfirmationSent
+                    if (shouldSendSetupEmail) {
+                        sendSetupConfirmationEmailForPreference(apiClient, pref)
+                    }
+
                     _formState.value = formFromPreference(pref)
                     _uiState.value = _uiState.value.copy(
+                        showTakeoverConfirmDialog = false,
                         activePreference = pref,
                         schedulerState = repository.getSchedulerState(email),
                         activeDeviceInfo = ActiveDeviceInfo(loading = false, currentDeviceActive = true),
@@ -896,7 +866,7 @@ class JobsViewModel(application: Application) : AndroidViewModel(application) {
                 }
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(error = "Failed to activate this device: ${e.message}")
-                Log.e(TAG, "takeoverDevice failed", e)
+                FcLog.e(FcLog.TAG_ACTIVE_DEVICE, "takeoverDevice failed", e)
             }
         }
     }
@@ -917,6 +887,89 @@ class JobsViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(showStopConfirmDialog = false)
     }
 
+    fun showTakeoverDialog() {
+        _uiState.value = _uiState.value.copy(showTakeoverConfirmDialog = true)
+    }
+
+    fun hideTakeoverDialog() {
+        _uiState.value = _uiState.value.copy(showTakeoverConfirmDialog = false)
+    }
+
+    fun startSaveWithReliabilityCheck() {
+        if (_uiState.value.isSaving) {
+            FcLog.w(FcLog.TAG_SCHEDULER, "startSaveWithReliabilityCheck: already saving, ignoring")
+            return
+        }
+        val status = JobAlertReliabilityEngine.getReliabilityStatus(context, _uiState.value.schedulerState)
+        FcLog.i(FcLog.TAG_RELIABILITY, "startSaveWithReliabilityCheck", mapOf(
+            "canActivate" to status.canActivateScheduler,
+            "overall" to status.overall.name,
+        ))
+        if (!status.canActivateScheduler) {
+            _uiState.value = _uiState.value.copy(
+                showReliabilitySetup = true,
+                reliabilitySetupStatus = status,
+            )
+        } else {
+            savePreference()
+        }
+    }
+
+    fun hideReliabilitySetup() {
+        _uiState.value = _uiState.value.copy(showReliabilitySetup = false, reliabilitySetupStatus = null)
+    }
+
+    fun refreshReliabilitySetup() {
+        val status = JobAlertReliabilityEngine.getReliabilityStatus(context, _uiState.value.schedulerState)
+        _uiState.value = _uiState.value.copy(reliabilitySetupStatus = status)
+        FcLog.i(FcLog.TAG_RELIABILITY, "refreshReliabilitySetup", mapOf(
+            "canActivate" to status.canActivateScheduler,
+        ))
+    }
+
+    fun openReliabilitySetup() {
+        val status = JobAlertReliabilityEngine.getReliabilityStatus(context, _uiState.value.schedulerState)
+        _uiState.value = _uiState.value.copy(
+            showReliabilitySetup = true,
+            reliabilitySetupStatus = status,
+        )
+        FcLog.i(FcLog.TAG_RELIABILITY, "openReliabilitySetup", mapOf(
+            "canActivate" to status.canActivateScheduler,
+        ))
+    }
+
+    fun onReliabilitySetupContinue() {
+        JobAlertReliabilityEngine.markReliabilityCompleted(context)
+        val status = JobAlertReliabilityEngine.getReliabilityStatus(context, _uiState.value.schedulerState)
+        _uiState.value = _uiState.value.copy(showReliabilitySetup = false, reliabilitySetupStatus = null)
+        if (status.canActivateScheduler) {
+            FcLog.i(FcLog.TAG_RELIABILITY, "Reliability complete, proceeding with save")
+            savePreference()
+        } else {
+            FcLog.w(FcLog.TAG_RELIABILITY, "Reliability still incomplete after continue")
+            _uiState.value = _uiState.value.copy(
+                reliabilitySetupStatus = status,
+                showReliabilitySetup = true,
+                error = "Please complete all required setup items first.",
+            )
+        }
+    }
+
+    fun confirmReliabilityAutostart() {
+        JobAlertReliabilityEngine.confirmAutostart(context)
+        refreshReliabilitySetup()
+    }
+
+    fun confirmReliabilityBattery() {
+        JobAlertReliabilityEngine.confirmBatteryOptimization(context)
+        refreshReliabilitySetup()
+    }
+
+    fun confirmReliabilityBackground() {
+        JobAlertReliabilityEngine.confirmBackgroundData(context)
+        refreshReliabilitySetup()
+    }
+
     fun refreshReliability() {
         val state = _uiState.value
         if (state.isLoggedIn) {
@@ -930,66 +983,6 @@ class JobsViewModel(application: Application) : AndroidViewModel(application) {
     fun formatTs(ts: Long?): String {
         if (ts == null || ts == 0L) return "Never"
         return dateFormat.format(Date(ts))
-    }
-
-    fun formatIsoDate(iso: String): String {
-        if (iso.isBlank()) return "Unknown"
-        return try {
-            val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
-            dateFormat.format(sdf.parse(iso) ?: Date())
-        } catch (_: Exception) {
-            iso.take(16)
-        }
-    }
-
-    fun intervalDisplayLabel(minutes: Long): String = when (minutes) {
-        15L -> "15 minutes"
-        30L -> "30 minutes"
-        60L -> "1 hour"
-        120L -> "2 hours"
-        360L -> "6 hours"
-        720L -> "12 hours"
-        1440L -> "Daily"
-        else -> "${minutes} minutes"
-    }
-
-    private fun diagnosticsFrom(
-        email: String,
-        activePref: JobAlertPreferenceEntity?,
-        schedulerState: DeviceSchedulerStateEntity?,
-        deviceInfo: ActiveDeviceInfo,
-        latestRun: com.fundocareer.app.core.jobalerts.JobAlertRunEntity?,
-        lastEmail: com.fundocareer.app.core.jobalerts.JobEmailLedgerEntity?,
-        previous: SchedulerDiagnosticsState,
-    ): SchedulerDiagnosticsState {
-        val localState = when {
-            activePref == null -> "No active local scheduler"
-            schedulerState?.pausedDueToLogout == true -> "Paused locally"
-            activePref.schedulerEnabled && !activePref.stoppedByUser -> "Active locally"
-            else -> "Saved but disabled"
-        }
-        val backendState = when {
-            deviceInfo.loading -> "Loading"
-            deviceInfo.currentDeviceActive -> "Current device active"
-            deviceInfo.otherDeviceActive -> "Another device active: ${deviceInfo.otherDeviceName ?: "unknown"}"
-            !deviceInfo.error.isNullOrBlank() -> "Unavailable: ${deviceInfo.error}"
-            else -> "No active backend device"
-        }
-        val lastErrorCode = activePref?.setupConfirmationErrorCode
-            ?: latestRun?.errorMessage?.takeIf { it.uppercase(Locale.US) == it && it.length <= 40 }
-            ?: previous.lastErrorCode
-        return previous.copy(
-            loggedInEmail = email,
-            localSchedulerState = localState,
-            activeDeviceBackendStatus = backendState,
-            lastWorkerRunTime = latestRun?.startedAt?.let { formatTs(it) } ?: "Never",
-            lastWorkerResult = latestRun?.status ?: "None",
-            lastEmailAttempt = lastEmail?.sentAt?.let { formatTs(it) }
-                ?: activePref?.lastEmailSentAt?.let { formatTs(it) }
-                ?: activePref?.setupConfirmationSentAt?.let { formatTs(it) }
-                ?: "Never",
-            lastErrorCode = lastErrorCode,
-        )
     }
 
     private suspend fun syncPreferenceSnapshot(
@@ -1007,7 +1000,10 @@ class JobsViewModel(application: Application) : AndroidViewModel(application) {
             schedulerState = schedulerStateSnapshotJson(pref, nextRunAt),
         )
         if (!result.success) {
-            Log.w(TAG, "syncPreferenceSnapshot failed: userEmail=${pref.userEmail}, preferenceId=${pref.id}, error=${result.error}")
+            FcLog.w(FcLog.TAG_ACTIVE_DEVICE, "syncPreferenceSnapshot failed", mapOf(
+                "preferenceId" to pref.id,
+                "error" to result.error,
+            ))
         }
     }
 
@@ -1112,17 +1108,6 @@ class JobsViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun isoDate(ts: Long): String {
-        return java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).format(Date(ts))
-    }
-
-    companion object {
-        private const val TAG = "JobsViewModel"
-
-        private val knownPositiveTypes = setOf(
-            "scheduler_created",
-            "scheduler_stopped",
-            "setup_email_sent",
-            "job_alert_sent",
-        )
+        return SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).format(Date(ts))
     }
 }

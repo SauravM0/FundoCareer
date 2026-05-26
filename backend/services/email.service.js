@@ -114,6 +114,18 @@ export function getEmailConfigStatus() {
  * @param {Array<{filename: string, content: Buffer|string}>} [options.attachments]
  * @returns {Promise<{success: boolean, messageId?: string, error?: string, errorCode?: string}>}
  */
+function classifyEmailError(err) {
+  if (!err || !err.message) return 'EMAIL_SEND_FAILED';
+  const msg = err.message;
+  if (msg.includes('Invalid login') || msg.includes('Application-specific password required')) return 'SMTP_AUTH_FAILED';
+  if (msg.includes('connect') || msg.includes('ECONN')) return 'SMTP_CONNECT_FAILED';
+  if (msg.includes('quota') || msg.includes('rate limit') || msg.includes('421')) return 'SMTP_RATE_LIMITED';
+  if (msg.includes('ENOTFOUND') || msg.includes('DNS')) return 'SMTP_DNS_FAILED';
+  if (msg.includes('ETIMEDOUT') || msg.includes('timeout')) return 'SMTP_TIMEOUT';
+  if (msg.includes('Message blocked') || msg.includes('spam')) return 'SMTP_BLOCKED';
+  return 'EMAIL_SEND_FAILED';
+}
+
 export async function sendEmail({ to, subject, html, text, attachments }) {
   const t = getTransporter();
   if (!t) {
@@ -160,10 +172,12 @@ export async function sendEmail({ to, subject, html, text, attachments }) {
       return { success: true, messageId: info.messageId };
     } catch (err) {
       lastError = err;
+      const errorCode = classifyEmailError(err);
       console.error(JSON.stringify({
         event: 'email_failed',
         to: maskEmail(to),
         error: err.message,
+        errorCode,
         attempt,
         maxRetries: MAX_RETRIES,
         timestamp: new Date().toISOString(),
@@ -175,6 +189,7 @@ export async function sendEmail({ to, subject, html, text, attachments }) {
           event: 'email_retry',
           to: maskEmail(to),
           attempt,
+          errorCode,
           nextAttemptDelayMs: delay,
           timestamp: new Date().toISOString(),
         }));
@@ -184,13 +199,6 @@ export async function sendEmail({ to, subject, html, text, attachments }) {
   }
 
   const errorMessage = lastError ? lastError.message : 'All retry attempts exhausted';
-  let errorCode = 'EMAIL_SEND_FAILED';
-  if (errorMessage.includes('Invalid login') || errorMessage.includes('Application-specific password required')) {
-    errorCode = 'SMTP_AUTH_FAILED';
-  } else if (errorMessage.includes('connect') || errorMessage.includes('ECONN')) {
-    errorCode = 'SMTP_CONNECT_FAILED';
-  } else if (errorMessage.includes('quota') || errorMessage.includes('rate limit')) {
-    errorCode = 'SMTP_RATE_LIMITED';
-  }
+  const errorCode = classifyEmailError(lastError);
   return { success: false, error: errorMessage, errorCode };
 }

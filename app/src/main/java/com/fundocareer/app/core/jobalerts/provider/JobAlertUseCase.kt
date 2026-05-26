@@ -1,23 +1,18 @@
 package com.fundocareer.app.core.jobalerts.provider
 
-import android.util.Log
 import com.fundocareer.app.core.jobalerts.JobAlertPreferenceEntity
 import com.fundocareer.app.core.jobalerts.JobAlertRepository
 import com.fundocareer.app.core.jobalerts.JobAlertStatus
-import com.fundocareer.app.core.jobalerts.JobResultEntity
 import com.fundocareer.app.core.jobalerts.JobSearchCriteria
 import com.fundocareer.app.core.jobalerts.JobSearchError
 import com.fundocareer.app.core.jobalerts.JobSearchResult
 import com.fundocareer.app.core.jobalerts.ParsedJob
+import com.fundocareer.app.core.logging.FcLog
 
 class JobAlertUseCase(
     private val repository: JobAlertRepository,
     private val jobSourceProvider: JobSourceProvider
 ) {
-
-    companion object {
-        private const val TAG = "JobAlertUseCase"
-    }
 
     data class FetchAndStoreResult(
         val allJobs: List<ParsedJob>,
@@ -31,11 +26,16 @@ class JobAlertUseCase(
         preferenceId: String,
         runId: String
     ): FetchAndStoreResult {
-        Log.i(TAG, "searchAndStore: userEmail=$userEmail, prefId=$preferenceId")
+        FcLog.i(FcLog.TAG_WORKER, "searchAndStore", mapOf(
+            "userEmail" to FcLog.maskEmail(userEmail),
+            "preferenceId" to preferenceId,
+        ))
 
         val preference = repository.getPreferenceById(preferenceId)
         if (preference == null) {
-            Log.w(TAG, "Preference not found: $preferenceId")
+            FcLog.w(FcLog.TAG_WORKER, "Preference not found", mapOf(
+                "preferenceId" to preferenceId,
+            ))
             return FetchAndStoreResult(allJobs = emptyList(), newJobs = emptyList(), error = JobSearchError.EmptyResponse)
         }
 
@@ -43,7 +43,9 @@ class JobAlertUseCase(
         val searchResult = jobSourceProvider.search(criteria)
 
         if (searchResult.error != null) {
-            Log.w(TAG, "Search error: ${searchResult.error}")
+            FcLog.w(FcLog.TAG_WORKER, "Search error", mapOf(
+                "error" to searchResult.error.toString(),
+            ))
         }
 
         if (searchResult.jobs.isEmpty()) {
@@ -67,7 +69,10 @@ class JobAlertUseCase(
 
     suspend fun searchJobs(preference: JobAlertPreferenceEntity): JobSearchResult {
         val criteria = mapPreferenceToCriteria(preference)
-        Log.d(TAG, "searchJobs: role=${criteria.role}, provider=${jobSourceProvider.sourceName}")
+        FcLog.d(FcLog.TAG_WORKER, "searchJobs", mapOf(
+            "role" to criteria.role,
+            "provider" to jobSourceProvider.sourceName,
+        ))
         return jobSourceProvider.search(criteria)
     }
 
@@ -84,7 +89,7 @@ class JobAlertUseCase(
                 val existing = repository.getJobResultByFingerprint(fingerprint)
                 if (existing != null) continue
             }
-            val entity = JobResultEntity(
+            val entity = com.fundocareer.app.core.jobalerts.JobResultEntity(
                 id = java.util.UUID.randomUUID().toString(),
                 userEmail = userEmail,
                 preferenceId = preferenceId,
@@ -103,7 +108,10 @@ class JobAlertUseCase(
             val inserted = repository.insertJobResult(entity)
             if (inserted > 0L) newJobs.add(pj)
         }
-        Log.d(TAG, "storeNewJobs: ${parsedJobs.size} total, ${newJobs.size} new")
+        FcLog.d(FcLog.TAG_WORKER, "storeNewJobs", mapOf(
+            "total" to parsedJobs.size,
+            "new" to newJobs.size,
+        ))
         return newJobs
     }
 
@@ -138,7 +146,7 @@ class JobAlertUseCase(
             val updatedPref = pref.copy(
                 lastRunAt = now,
                 lastError = if (status.startsWith("FAILED") || status.startsWith("SKIPPED")) errorMessage else null,
-                lastEmailSentAt = if (status == JobAlertStatus.SUCCESS_EMAIL_SENT) now else pref.lastEmailSentAt
+                lastEmailSentAt = if (status == com.fundocareer.app.core.jobalerts.JobAlertStatus.SUCCESS_EMAIL_SENT) now else pref.lastEmailSentAt
             )
             repository.updatePreference(updatedPref)
         }

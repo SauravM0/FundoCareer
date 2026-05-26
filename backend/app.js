@@ -128,6 +128,8 @@ function schedulerDiagnosticsRequestLogger(req, res, next) {
     timestamp: new Date().toISOString(),
   }));
 
+  req.requestId = requestId;
+
   res.on('finish', () => {
     console.log(JSON.stringify({
       event: 'api_request_finished',
@@ -221,7 +223,9 @@ app.get("/api/user/profile", authenticate, getCurrentUser);
 app.get("/api/user/me", authenticate, getCurrentUser);
 
 // Stub routes
-const stubGet = (path) => app.get(path, (req, res) => res.json({ success: true, data: [] }));
+const stubGet = (path) => app.get(path, (req, res) => {
+  res.json({ success: true, requestId: req.requestId || undefined, data: [] });
+});
 stubGet('/api/commercial/config');
 stubGet('/api/features');
 stubGet('/api/interview/history');
@@ -258,14 +262,53 @@ app.use((req, res) => {
 
 // Global error handler
 app.use((err, req, res, next) => {
-  console.error("[Server Error]", err);
+  const requestId = req.requestId || null;
   const isApi = req.path && req.path.startsWith('/api/');
+
+  // Prisma known request errors
+  if (err.constructor && err.constructor.name === 'PrismaClientKnownRequestError') {
+    console.error(JSON.stringify({
+      event: 'prisma_error', requestId, code: err.code, meta: err.meta,
+      message: err.message?.substring(0, 200),
+    }));
+    const statusCode = err.code === 'P2002' ? 409 : err.code === 'P2025' ? 404 : 400;
+    return res.status(statusCode).json({
+      success: false,
+      message: statusCode === 409 ? 'Resource already exists' : 'Database operation failed',
+      errorCode: statusCode === 409 ? 'DUPLICATE_RESOURCE' : 'DB_ERROR',
+      ...(isApi ? { path: req.path } : {}),
+      ...(requestId ? { requestId } : {}),
+    });
+  }
+
+  // Prisma validation errors
+  if (err.constructor && err.constructor.name === 'PrismaClientValidationError') {
+    console.error(JSON.stringify({
+      event: 'prisma_validation_error', requestId,
+      message: err.message?.substring(0, 200),
+    }));
+    return res.status(400).json({
+      success: false, message: 'Invalid data provided',
+      errorCode: 'VALIDATION_ERROR',
+      ...(isApi ? { path: req.path } : {}),
+      ...(requestId ? { requestId } : {}),
+    });
+  }
+
+  console.error(JSON.stringify({
+    event: 'server_error', requestId,
+    message: err.message,
+    statusCode: err.status || err.statusCode || 500,
+    ...(process.env.NODE_ENV === "development" ? { stack: err.stack } : {}),
+  }));
+
   const statusCode = err.status || err.statusCode || 500;
   res.status(statusCode).json({
     success: false,
-    message: err.message || "Internal server error",
+    message: statusCode >= 500 ? "Internal server error" : err.message,
+    errorCode: statusCode >= 500 ? 'SERVER_ERROR' : undefined,
     ...(isApi ? { path: req.path } : {}),
-    ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
+    ...(requestId ? { requestId } : {}),
   });
 });
 

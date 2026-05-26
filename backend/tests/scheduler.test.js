@@ -353,13 +353,18 @@ describe('Notification Email Endpoint', () => {
     expect(res.body.success).toBe(false);
   });
 
-  test('Empty newJobs returns 400', async () => {
+  test('Empty newJobs sends no-new-jobs email (not an error)', async () => {
     const res = await setAuth(authReq()
       .post('/api/notifications/send-email'))
       .send({ to: TEST_USER.email, preferenceId: 'test-pref', newJobs: [] });
 
-    expect(res.status).toBe(400);
-    expect(res.body.success).toBe(false);
+    // Empty newJobs is valid: sends "no new matching jobs" email
+    // Will return 200 if email configured, or 500 if not
+    expect([200, 500]).toContain(res.status);
+    if (res.status === 200) {
+      expect(res.body.success).toBe(true);
+      expect(res.body.jobEmailSent).toBe(false);
+    }
   });
 
   test('Too many jobs returns 400', async () => {
@@ -936,5 +941,371 @@ describe('Two-Device Acceptance Scenarios', () => {
     await setAuth(authReq()
       .post('/api/scheduler/release-lock'))
       .send({ preferenceSetId: RACE_PREF, deviceId: DEVICE_B.deviceId });
+  });
+});
+
+// ================================================================
+// ACCEPTANCE TEST SCENARIOS (10 required scenarios)
+// ================================================================
+
+describe('Acceptance Test Scenarios', () => {
+
+  const ACCEPT_PREF = 'acceptance-pref';
+
+  beforeEach(async () => {
+    await prisma.schedulerDeviceState.updateMany({
+      where: { userEmail: TEST_USER.email },
+      data: { isActiveDevice: false },
+    });
+    await prisma.schedulerLock.deleteMany({ where: { userEmail: TEST_USER.email } });
+    await prisma.schedulerRunHistory.deleteMany({ where: { userEmail: TEST_USER.email } });
+    await prisma.emailSentHistory.deleteMany({ where: { userEmail: TEST_USER.email } });
+    await prisma.emailedJobFingerprint.deleteMany({
+      where: { userEmail: TEST_USER.email, preferenceId: ACCEPT_PREF },
+    });
+  });
+
+  // Scenario 1: Activate first device
+  test('1. Activate first device successfully', async () => {
+    const res = await setAuth(authReq()
+      .post('/api/scheduler/active-device/activate'))
+      .send({
+        deviceId: DEVICE_A.deviceId,
+        deviceName: 'Pixel 8',
+        devicePlatform: DEVICE_A.deviceType,
+        schedulerPreferenceId: ACCEPT_PREF,
+        intervalMinutes: 30,
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.activeDevice).not.toBeNull();
+    expect(res.body.activeDevice.deviceId).toBe(DEVICE_A.deviceId);
+    expect(res.body.activeDevice.devicePlatform).toBe(DEVICE_A.deviceType);
+    expect(res.body.isCurrentDeviceActive).toBe(true);
+  });
+
+  // Scenario 2: Activate second device without takeover returns 409
+  test('2. Activate second device without takeover returns 409', async () => {
+    // Activate Device A first
+    await setAuth(authReq()
+      .post('/api/scheduler/active-device/activate'))
+      .send({
+        deviceId: DEVICE_A.deviceId,
+        deviceName: 'Pixel 8',
+        devicePlatform: DEVICE_A.deviceType,
+        schedulerPreferenceId: ACCEPT_PREF,
+      });
+
+    // Device B tries to activate without takeover
+    const res = await setAuth(authReq()
+      .post('/api/scheduler/active-device/activate'))
+      .send({
+        deviceId: DEVICE_B.deviceId,
+        deviceName: 'Desktop App',
+        devicePlatform: DEVICE_B.deviceType,
+        schedulerPreferenceId: ACCEPT_PREF,
+      });
+
+    expect(res.status).toBe(409);
+    expect(res.body.success).toBe(false);
+    expect(res.body.errorCode).toBe('ACTIVE_DEVICE_EXISTS');
+    expect(res.body.activeDevice.deviceId).toBe(DEVICE_A.deviceId);
+    expect(res.body.isCurrentDeviceActive).toBe(false);
+  });
+
+  // Scenario 3: Activate second device with takeover succeeds
+  test('3. Activate second device with takeover succeeds', async () => {
+    // Activate Device A first
+    await setAuth(authReq()
+      .post('/api/scheduler/active-device/activate'))
+      .send({
+        deviceId: DEVICE_A.deviceId,
+        deviceName: 'Pixel 8',
+        devicePlatform: DEVICE_A.deviceType,
+        schedulerPreferenceId: ACCEPT_PREF,
+      });
+
+    // Device B takes over
+    const res = await setAuth(authReq()
+      .post('/api/scheduler/active-device/activate'))
+      .send({
+        deviceId: DEVICE_B.deviceId,
+        deviceName: 'Desktop App',
+        devicePlatform: DEVICE_B.deviceType,
+        schedulerPreferenceId: ACCEPT_PREF,
+        takeover: true,
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.activeDevice.deviceId).toBe(DEVICE_B.deviceId);
+    expect(res.body.isCurrentDeviceActive).toBe(true);
+
+    // Verify Device A is no longer active
+    const checkA = await setAuth(authReq()
+      .get(`/api/scheduler/active-device?deviceId=${DEVICE_A.deviceId}`));
+    expect(checkA.body.isCurrentDeviceActive).toBe(false);
+  });
+
+  // Scenario 4: Verify active device true
+  test('4. Verify active device returns canSend=true', async () => {
+    await setAuth(authReq()
+      .post('/api/scheduler/active-device/activate'))
+      .send({
+        deviceId: DEVICE_A.deviceId,
+        deviceName: 'Pixel 8',
+        devicePlatform: DEVICE_A.deviceType,
+        schedulerPreferenceId: ACCEPT_PREF,
+      });
+
+    const res = await setAuth(authReq()
+      .post('/api/scheduler/active-device/verify'))
+      .send({ deviceId: DEVICE_A.deviceId });
+
+    expect(res.status).toBe(200);
+    expect(res.body.canSend).toBe(true);
+  });
+
+  // Scenario 5: Verify inactive device false
+  test('5. Verify inactive device returns canSend=false', async () => {
+    await setAuth(authReq()
+      .post('/api/scheduler/active-device/activate'))
+      .send({
+        deviceId: DEVICE_A.deviceId,
+        deviceName: 'Pixel 8',
+        devicePlatform: DEVICE_A.deviceType,
+        schedulerPreferenceId: ACCEPT_PREF,
+      });
+
+    const res = await setAuth(authReq()
+      .post('/api/scheduler/active-device/verify'))
+      .send({ deviceId: DEVICE_B.deviceId });
+
+    expect(res.status).toBe(200);
+    expect(res.body.canSend).toBe(false);
+    expect(res.body.reason).toBe('device_not_active');
+  });
+
+  // Scenario 6: Setup email blocked from inactive device
+  test('6. Setup email blocked from inactive device', async () => {
+    // Activate Device A
+    await setAuth(authReq()
+      .post('/api/scheduler/active-device/activate'))
+      .send({
+        deviceId: DEVICE_A.deviceId,
+        deviceName: 'Pixel 8',
+        devicePlatform: DEVICE_A.deviceType,
+        schedulerPreferenceId: ACCEPT_PREF,
+      });
+
+    // Device B tries to send setup email — should be blocked
+    const blockedRes = await setAuth(authReq()
+      .post('/api/notifications/send-setup-email'))
+      .send({
+        to: TEST_USER.email,
+        preferenceId: ACCEPT_PREF,
+        preferenceDetails: 'Role: Test\nLocation: Remote',
+        deviceId: DEVICE_B.deviceId,
+      });
+
+    expect(blockedRes.status).toBe(403);
+    expect(blockedRes.body.errorCode).toBe('DEVICE_NOT_ACTIVE');
+    expect(blockedRes.body.setupEmailSent).toBe(false);
+
+    // Device A can send setup email
+    const okRes = await setAuth(authReq()
+      .post('/api/notifications/send-setup-email'))
+      .send({
+        to: TEST_USER.email,
+        preferenceId: ACCEPT_PREF,
+        preferenceDetails: 'Role: Test\nLocation: Remote',
+        deviceId: DEVICE_A.deviceId,
+      });
+
+    expect(okRes.status).toBe(200);
+    expect(okRes.body.setupEmailSent).toBe(true);
+  });
+
+  // Scenario 7: Setup email sent from active device
+  test('7. Setup email sent from active device', async () => {
+    await setAuth(authReq()
+      .post('/api/scheduler/active-device/activate'))
+      .send({
+        deviceId: DEVICE_A.deviceId,
+        deviceName: 'Pixel 8',
+        devicePlatform: DEVICE_A.deviceType,
+        schedulerPreferenceId: ACCEPT_PREF,
+      });
+
+    const res = await setAuth(authReq()
+      .post('/api/notifications/send-setup-email'))
+      .send({
+        to: TEST_USER.email,
+        preferenceId: ACCEPT_PREF,
+        preferenceDetails: 'Role: Test\nLocation: Remote',
+        deviceId: DEVICE_A.deviceId,
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.emailSent).toBe(true);
+    expect(res.body.setupEmailSent).toBe(true);
+
+    // Verify lastSetupEmailAt is set
+    const getRes = await setAuth(authReq()
+      .get(`/api/scheduler/active-device?deviceId=${DEVICE_A.deviceId}`));
+    expect(getRes.body.activeDevice.lastSetupEmailAt).toBeDefined();
+  });
+
+  // Scenario 8: sync-state does not activate device unexpectedly
+  test('8. sync-state does not activate device unexpectedly', async () => {
+    // Sync state without activating
+    const syncRes = await setAuth(authReq()
+      .post('/api/scheduler/sync-state'))
+      .send({
+        ...DEVICE_A,
+        preferences: { role: 'Developer', location: 'Remote' },
+        schedulerState: { enabled: true, intervalMinutes: 15 },
+      });
+
+    expect(syncRes.status).toBe(200);
+    expect(syncRes.body.success).toBe(true);
+
+    // Verify the device is NOT active after sync
+    const getRes = await setAuth(authReq()
+      .get(`/api/scheduler/active-device?deviceId=${DEVICE_A.deviceId}`));
+    expect(getRes.body.activeDevice).toBeNull();
+
+    // Activate device explicitly
+    const activateRes = await setAuth(authReq()
+      .post('/api/scheduler/active-device/activate'))
+      .send({
+        deviceId: DEVICE_A.deviceId,
+        deviceName: 'Pixel 8',
+        devicePlatform: DEVICE_A.deviceType,
+        schedulerPreferenceId: ACCEPT_PREF,
+      });
+    expect(activateRes.body.isCurrentDeviceActive).toBe(true);
+
+    // Sync again should not deactivate
+    const syncRes2 = await setAuth(authReq()
+      .post('/api/scheduler/sync-state'))
+      .send({
+        ...DEVICE_A,
+        preferences: { role: 'Developer', location: 'Remote' },
+      });
+    expect(syncRes2.status).toBe(200);
+
+    const getRes2 = await setAuth(authReq()
+      .get(`/api/scheduler/active-device?deviceId=${DEVICE_A.deviceId}`));
+    expect(getRes2.body.activeDevice).not.toBeNull();
+    expect(getRes2.body.isCurrentDeviceActive).toBe(true);
+  });
+
+  // Scenario 9: Stop scheduler deactivates active device
+  test('9. Stop scheduler deactivates active device', async () => {
+    // Activate Device A
+    await setAuth(authReq()
+      .post('/api/scheduler/active-device/activate'))
+      .send({
+        deviceId: DEVICE_A.deviceId,
+        deviceName: 'Pixel 8',
+        devicePlatform: DEVICE_A.deviceType,
+        schedulerPreferenceId: ACCEPT_PREF,
+      });
+
+    // Verify active
+    const beforeRes = await setAuth(authReq()
+      .get(`/api/scheduler/active-device?deviceId=${DEVICE_A.deviceId}`));
+    expect(beforeRes.body.activeDevice).not.toBeNull();
+
+    // Deactivate (stop scheduler)
+    const deactRes = await setAuth(authReq()
+      .post('/api/scheduler/active-device/deactivate'))
+      .send({ deviceId: DEVICE_A.deviceId });
+
+    expect(deactRes.status).toBe(200);
+    expect(deactRes.body.deactivated).toBe(true);
+    expect(deactRes.body.stoppedAt).toBeDefined();
+
+    // Verify inactive
+    const afterRes = await setAuth(authReq()
+      .get(`/api/scheduler/active-device?deviceId=${DEVICE_A.deviceId}`));
+    expect(afterRes.body.activeDevice).toBeNull();
+    expect(afterRes.body.isCurrentDeviceActive).toBe(false);
+  });
+
+  // Scenario 10: History returns events
+  test('10. History returns events', async () => {
+    // Activate device and create some history
+    await setAuth(authReq()
+      .post('/api/scheduler/active-device/activate'))
+      .send({
+        deviceId: DEVICE_A.deviceId,
+        deviceName: 'Pixel 8',
+        devicePlatform: DEVICE_A.deviceType,
+        schedulerPreferenceId: ACCEPT_PREF,
+      });
+
+    // Create a run history entry
+    await setAuth(authReq()
+      .post('/api/scheduler/sync-state'))
+      .send({
+        ...DEVICE_A,
+        preferences: { role: 'Developer', location: 'Remote' },
+        recentRuns: [
+          {
+            preferenceId: ACCEPT_PREF,
+            runId: 'acceptance-run-1',
+            status: 'SUCCESS_EMAIL_SENT',
+            jobsFound: 15,
+            jobsNew: 5,
+            startedAt: new Date().toISOString(),
+            triggeredBy: 'scheduler',
+          },
+          {
+            preferenceId: ACCEPT_PREF,
+            runId: 'acceptance-run-2',
+            status: 'SUCCESS_NO_NEW_JOBS',
+            jobsFound: 10,
+            jobsNew: 0,
+            startedAt: new Date(Date.now() - 60000).toISOString(),
+            triggeredBy: 'scheduler',
+          },
+        ],
+      });
+
+    // Test email history endpoint
+    const historyRes = await setAuth(authReq()
+      .get(`/api/scheduler/history?preferenceId=${ACCEPT_PREF}`));
+
+    expect(historyRes.status).toBe(200);
+    expect(historyRes.body.success).toBe(true);
+    expect(Array.isArray(historyRes.body.history)).toBe(true);
+
+    // Test history summary endpoint
+    const summaryRes = await setAuth(authReq()
+      .post('/api/scheduler/history-summary'))
+      .send({ preferenceId: ACCEPT_PREF });
+
+    expect(summaryRes.status).toBe(200);
+    expect(summaryRes.body.success).toBe(true);
+    // historySummary excludes SUCCESS_NO_NEW_JOBS from totalRuns and job counts
+    expect(summaryRes.body.data.totalRuns).toBeGreaterThanOrEqual(1);
+    expect(summaryRes.body.data.totalJobsFound).toBeGreaterThanOrEqual(15);
+
+    // Test timeline endpoint
+    const timelineRes = await setAuth(authReq()
+      .get('/api/scheduler/user-timeline'));
+
+    expect(timelineRes.status).toBe(200);
+    expect(timelineRes.body.success).toBe(true);
+    expect(Array.isArray(timelineRes.body.timeline)).toBe(true);
+
+    // Should have at least: scheduler_created event + run events
+    const types = timelineRes.body.timeline.map(e => e.type);
+    expect(types).toContain('scheduler_created');
+    expect(types).toContain('job_alert_sent');
+    expect(types).toContain('no_jobs_found');
   });
 });

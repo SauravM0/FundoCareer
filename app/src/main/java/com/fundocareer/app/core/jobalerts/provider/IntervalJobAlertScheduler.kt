@@ -1,7 +1,7 @@
 package com.fundocareer.app.core.jobalerts.provider
 
 import android.content.Context
-import android.util.Log
+import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
@@ -10,6 +10,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.fundocareer.app.core.jobalerts.DeviceSchedulerStateEntity
 import com.fundocareer.app.core.jobalerts.JobAlertRepository
+import com.fundocareer.app.core.logging.FcLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -17,7 +18,6 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 object IntervalJobAlertScheduler {
-    private const val TAG = "IntervalJobAlertScheduler"
     private const val UNIQUE_WORK_NAME_PREFIX = "interval_job_alert_"
     private const val UNIQUE_WORK_NAME_IMMEDIATE_PREFIX = "interval_job_alert_immediate_"
     private const val MIN_INTERVAL_MINUTES = 15L
@@ -38,7 +38,11 @@ object IntervalJobAlertScheduler {
         runImmediately: Boolean = true
     ) {
         val clamped = intervalMinutes.coerceAtLeast(MIN_INTERVAL_MINUTES)
-        Log.i(TAG, "startSchedulerAfterSave: preferenceId=$preferenceId, intervalMinutes=$clamped, runImmediately=$runImmediately")
+        FcLog.i(FcLog.TAG_SCHEDULER, "startSchedulerAfterSave", mapOf(
+            "preferenceId" to preferenceId,
+            "intervalMinutes" to clamped,
+            "runImmediately" to runImmediately,
+        ))
 
         if (runImmediately) {
             enqueueImmediateRun(context, preferenceId, TRIGGER_REASON_IMMEDIATE)
@@ -58,7 +62,11 @@ object IntervalJobAlertScheduler {
         val delayMillis = clamped * 60 * 1000L
         val nextRunAt = System.currentTimeMillis() + delayMillis
 
-        Log.i(TAG, "scheduleNextRun: preferenceId=$preferenceId, interval=${clamped}min, nextRunAt=$nextRunAt")
+        FcLog.i(FcLog.TAG_SCHEDULER, "scheduleNextRun", mapOf(
+            "preferenceId" to preferenceId,
+            "interval" to "${clamped}min",
+            "nextRunAt" to nextRunAt,
+        ))
 
         val inputData = Data.Builder()
             .putString("preferenceId", preferenceId)
@@ -73,15 +81,22 @@ object IntervalJobAlertScheduler {
         val workRequest = OneTimeWorkRequestBuilder<JobAlertWorker>()
             .setInitialDelay(delayMillis, TimeUnit.MILLISECONDS)
             .setConstraints(constraints)
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
             .setInputData(inputData)
             .addTag("interval_job_alert")
             .build()
 
+        val workId = workRequest.id
         val uniqueWorkName = UNIQUE_WORK_NAME_PREFIX + preferenceId
         WorkManager.getInstance(context)
-            .enqueueUniqueWork(uniqueWorkName, ExistingWorkPolicy.REPLACE, workRequest)
+            .enqueueUniqueWork(uniqueWorkName, ExistingWorkPolicy.KEEP, workRequest)
 
-        Log.i(TAG, "Work enqueued: pref=$preferenceId, uniqueName=$uniqueWorkName, delay=${clamped}min")
+        FcLog.i(FcLog.TAG_SCHEDULER, "Work enqueued", mapOf(
+            "preferenceId" to preferenceId,
+            "uniqueName" to uniqueWorkName,
+            "workId" to workId.toString(),
+            "delay" to "${clamped}min",
+        ))
 
         val repo = JobAlertRepository.getInstance(context)
         repo.updateNextScheduledRunAt(preferenceId, nextRunAt)
@@ -99,17 +114,22 @@ object IntervalJobAlertScheduler {
                     schedulerEnabled = true
                 )
                 repo.saveSchedulerState(updated)
-                Log.i(TAG, "Scheduler state updated for ${pref.userEmail}: nextRunAt=$nextRunAt")
+                FcLog.i(FcLog.TAG_SCHEDULER, "Scheduler state updated", mapOf(
+                    "userEmail" to FcLog.maskEmail(pref.userEmail),
+                    "nextRunAt" to nextRunAt,
+                ))
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to update scheduler state for $preferenceId", e)
+            FcLog.e(FcLog.TAG_SCHEDULER, "Failed to update scheduler state", e, mapOf(
+                "preferenceId" to preferenceId,
+            ))
         }
     }
 
     // ================================================================
     // 3. enqueueImmediateRun
     // ================================================================
-    fun enqueueImmediateRun(
+    suspend fun enqueueImmediateRun(
         context: Context,
         preferenceId: String,
         reason: String = TRIGGER_REASON_IMMEDIATE
@@ -126,27 +146,38 @@ object IntervalJobAlertScheduler {
 
         val workRequest = OneTimeWorkRequestBuilder<JobAlertWorker>()
             .setConstraints(constraints)
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
             .setInputData(inputData)
             .addTag("interval_job_alert_immediate")
             .build()
 
+        val workId = workRequest.id
         val uniqueWorkName = UNIQUE_WORK_NAME_IMMEDIATE_PREFIX + preferenceId
         WorkManager.getInstance(context)
-            .enqueueUniqueWork(uniqueWorkName, ExistingWorkPolicy.REPLACE, workRequest)
+            .enqueueUniqueWork(uniqueWorkName, ExistingWorkPolicy.KEEP, workRequest)
 
-        Log.i(TAG, "Immediate work enqueued: pref=$preferenceId, reason=$reason, name=$uniqueWorkName")
+        FcLog.i(FcLog.TAG_SCHEDULER, "Immediate work enqueued", mapOf(
+            "preferenceId" to preferenceId,
+            "reason" to reason,
+            "name" to uniqueWorkName,
+            "workId" to workId.toString(),
+        ))
     }
 
     // ================================================================
     // 4. cancelScheduler
     // ================================================================
     suspend fun cancelScheduler(context: Context, preferenceId: String) {
-        Log.i(TAG, "cancelScheduler: preferenceId=$preferenceId")
+        FcLog.i(FcLog.TAG_SCHEDULER, "cancelScheduler", mapOf(
+            "preferenceId" to preferenceId,
+        ))
 
         val wm = WorkManager.getInstance(context)
         wm.cancelUniqueWork(UNIQUE_WORK_NAME_PREFIX + preferenceId)
         wm.cancelUniqueWork(UNIQUE_WORK_NAME_IMMEDIATE_PREFIX + preferenceId)
-        Log.i(TAG, "Work cancelled for preference $preferenceId")
+        FcLog.i(FcLog.TAG_SCHEDULER, "Work cancelled", mapOf(
+            "preferenceId" to preferenceId,
+        ))
 
         try {
             val repo = JobAlertRepository.getInstance(context)
@@ -161,11 +192,15 @@ object IntervalJobAlertScheduler {
                         schedulerEnabled = false,
                         nextScheduledRunAt = null
                     ))
-                    Log.i(TAG, "Scheduler state marked disabled for ${pref.userEmail}")
+                    FcLog.i(FcLog.TAG_SCHEDULER, "Scheduler state marked disabled", mapOf(
+                        "userEmail" to FcLog.maskEmail(pref.userEmail),
+                    ))
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to update scheduler state for $preferenceId", e)
+            FcLog.e(FcLog.TAG_SCHEDULER, "Failed to update scheduler state on cancel", e, mapOf(
+                "preferenceId" to preferenceId,
+            ))
         }
     }
 
@@ -173,32 +208,51 @@ object IntervalJobAlertScheduler {
     // 5. reconcileOnAppStart
     // ================================================================
     suspend fun reconcileOnAppStart(context: Context) {
-        Log.i(TAG, "reconcileOnAppStart")
+        FcLog.i(FcLog.TAG_SCHEDULER, "reconcileOnAppStart")
         val repo = JobAlertRepository.getInstance(context)
-        val activePrefs = withContext(Dispatchers.IO) {
-            repo.getAllActiveEnabledPreferences()
+        val enabledStates = withContext(Dispatchers.IO) {
+            repo.getAllEnabledSchedulerStatesNow()
         }
-        if (activePrefs.isEmpty()) {
-            Log.i(TAG, "No active scheduler-enabled preferences to reconcile")
+        if (enabledStates.isEmpty()) {
+            FcLog.i(FcLog.TAG_SCHEDULER, "No enabled schedulers to reconcile")
             return
         }
         val nowMs = System.currentTimeMillis()
-        for (pref in activePrefs) {
-            val interval = pref.intervalMinutes.coerceAtLeast(MIN_INTERVAL_MINUTES)
-            val nextRun = pref.nextScheduledRunAt
-            when {
-                nextRun == null -> {
-                    Log.i(TAG, "No nextScheduledRunAt for pref ${pref.id} — scheduling next run")
-                    scheduleNextRun(context, pref.id, interval)
-                }
-                nextRun < nowMs -> {
-                    Log.i(TAG, "Missed run for pref ${pref.id} (nextRun=$nextRun) — enqueue catch-up + reschedule")
-                    enqueueImmediateRun(context, pref.id, TRIGGER_REASON_CATCH_UP)
-                    scheduleNextRun(context, pref.id, interval)
-                }
-                else -> {
-                    Log.i(TAG, "Future run for pref ${pref.id} at $nextRun — ensuring next run scheduled")
-                    scheduleNextRun(context, pref.id, interval)
+        for (state in enabledStates) {
+            if (!state.isThisDeviceActive) {
+                FcLog.i(FcLog.TAG_SCHEDULER, "Skipping reconcile for non-active device", mapOf(
+                    "userEmail" to FcLog.maskEmail(state.userEmail),
+                ))
+                continue
+            }
+            val prefs = withContext(Dispatchers.IO) {
+                repo.getActivePreferences(state.userEmail).first()
+            }
+            val activePrefs = prefs.filter { !it.stoppedByUser && it.active }
+            for (pref in activePrefs) {
+                val interval = pref.intervalMinutes.coerceAtLeast(MIN_INTERVAL_MINUTES)
+                val nextRun = pref.nextScheduledRunAt
+                when {
+                    nextRun == null -> {
+                        FcLog.i(FcLog.TAG_SCHEDULER, "No nextScheduledRunAt", mapOf(
+                            "preferenceId" to pref.id,
+                        ))
+                        scheduleNextRun(context, pref.id, interval)
+                    }
+                    nextRun < nowMs -> {
+                        FcLog.i(FcLog.TAG_SCHEDULER, "Missed run", mapOf(
+                            "preferenceId" to pref.id,
+                            "nextRun" to nextRun,
+                        ))
+                        enqueueImmediateRun(context, pref.id, TRIGGER_REASON_CATCH_UP)
+                        scheduleNextRun(context, pref.id, interval)
+                    }
+                    else -> {
+                        FcLog.i(FcLog.TAG_SCHEDULER, "Future run, already enqueued", mapOf(
+                            "preferenceId" to pref.id,
+                            "nextRun" to nextRun,
+                        ))
+                    }
                 }
             }
         }
@@ -208,7 +262,7 @@ object IntervalJobAlertScheduler {
     // 6. reconcileAfterBoot
     // ================================================================
     suspend fun reconcileAfterBoot(context: Context) {
-        Log.i(TAG, "reconcileAfterBoot")
+        FcLog.i(FcLog.TAG_SCHEDULER, "reconcileAfterBoot")
         reconcileEnabledSchedulers(context, TRIGGER_REASON_BOOT_RECOVERY)
     }
 
@@ -222,10 +276,16 @@ object IntervalJobAlertScheduler {
             repo.getAllEnabledSchedulerStatesNow()
         }
         if (enabledStates.isEmpty()) {
-            Log.i(TAG, "No enabled schedulers to reconcile")
+            FcLog.i(FcLog.TAG_SCHEDULER, "No enabled schedulers to reconcile")
             return
         }
         for (state in enabledStates) {
+            if (!state.isThisDeviceActive) {
+                FcLog.i(FcLog.TAG_SCHEDULER, "Skipping reconcile for non-active device", mapOf(
+                    "userEmail" to FcLog.maskEmail(state.userEmail),
+                ))
+                continue
+            }
             val prefs = withContext(Dispatchers.IO) {
                 repo.getActivePreferences(state.userEmail).first()
             }
@@ -236,7 +296,10 @@ object IntervalJobAlertScheduler {
                 val nextRun = state.nextScheduledRunAt
                 if (nextRun != null && nextRun < System.currentTimeMillis()) {
                     enqueueImmediateRun(context, pref.id, catchUpReason)
-                    Log.i(TAG, "Catch-up enqueued for preference ${pref.id} (reason=$catchUpReason)")
+                    FcLog.i(FcLog.TAG_SCHEDULER, "Catch-up enqueued", mapOf(
+                        "preferenceId" to pref.id,
+                        "reason" to catchUpReason,
+                    ))
                 }
             }
         }

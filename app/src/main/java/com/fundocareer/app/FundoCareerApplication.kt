@@ -3,9 +3,9 @@ package com.fundocareer.app
 import android.app.Application
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
 import com.fundocareer.app.core.jobalerts.JobAlertNotificationHelper
 import com.fundocareer.app.core.jobalerts.provider.IntervalJobAlertScheduler
+import com.fundocareer.app.core.logging.FcLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -13,7 +13,6 @@ import kotlinx.coroutines.launch
 class FundoCareerApplication : Application() {
 
     companion object {
-        private const val TAG = "FundoCareerApp"
         private const val SCHEDULER_DELAY_MS = 5000L
     }
 
@@ -24,9 +23,11 @@ class FundoCareerApplication : Application() {
             CoroutineScope(Dispatchers.IO).launch {
                 try {
                     IntervalJobAlertScheduler.reconcileOnAppStart(applicationContext)
-                    Log.i(TAG, "Scheduler reconciled after startup delay")
+                    FcLog.i(FcLog.TAG_APP, "Scheduler reconciled after startup delay")
                 } catch (e: Exception) {
-                    Log.w(TAG, "Scheduler reconcile failed", e)
+                    FcLog.w(FcLog.TAG_APP, "Scheduler reconcile failed", mapOf(
+                        "error" to e.message,
+                    ))
                 }
             }
         }, SCHEDULER_DELAY_MS)

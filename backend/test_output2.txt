@@ -1,0 +1,1987 @@
+﻿  console.log
+    Γ£ô Google OAuth Strategy configured
+
+      at config/passport.config.js:92:11
+
+  console.log
+      Callback URL: https://www.fundocareer.com/api/auth/google/callback
+
+      at config/passport.config.js:93:11
+
+  console.log
+    [dotenv@17.3.1] injecting env (0) from .env -- tip: ≡ƒöÉ encrypt with Dotenvx: https://dotenvx.com
+
+      at _log (node_modules/dotenv/lib/main.js:139:11)
+
+  console.log
+    
+    [Startup] Email configuration check:
+
+      at app.js:37:9
+
+  console.log
+      Γ£ô Gmail App Password detected (format valid)
+
+      at app.js:54:13
+
+  console.log
+      User: sc***@gmail.com
+
+      at app.js:56:11
+
+  console.log
+
+
+      at app.js:60:9
+
+  console.log
+    [API] Mounting auth routes at /api/auth
+
+      at app.js:203:9
+
+  console.log
+    [API] Mounting mobile auth routes at /api/mobile/auth
+
+      at app.js:205:9
+
+  console.log
+    [API] Mounting resume routes at /api/resume
+
+      at app.js:207:9
+
+  console.log
+    [API] Mounting AI routes at /api/ai
+
+      at app.js:210:9
+
+  console.log
+    [API] Mounting download routes at /api/download
+
+      at app.js:212:9
+
+  console.log
+    [API] Mounting scheduler routes at /api/scheduler
+
+      at app.js:214:9
+
+  console.log
+    [API] Mounting notification routes at /api/notifications
+
+      at app.js:216:9
+
+(node:11892) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+  console.log
+    {"event":"api_request_started","requestId":"c1ae6dbc","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:29.337Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_activated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"android"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"c1ae6dbc","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":90,"timestamp":"2026-05-26T08:09:29.426Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"81ef6886","endpoint":"/api/scheduler/acquire-lock","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:29.448Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"lock_acquire","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","preferenceSet":"test-preference-set-id-123","granted":true,"reason":null}
+
+      at acquireLock (features/scheduler/controllers/scheduler.controller.js:62:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"81ef6886","endpoint":"/api/scheduler/acquire-lock","method":"POST","httpStatus":200,"durationMs":73,"timestamp":"2026-05-26T08:09:29.521Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"d21b5b24","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:29.580Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_activated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"android"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"d21b5b24","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":36,"timestamp":"2026-05-26T08:09:29.616Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"b9e9bdd4","endpoint":"/api/scheduler/acquire-lock","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:29.627Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"lock_acquire","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","preferenceSet":"test-preference-set-id-123","granted":true,"reason":null}
+
+      at acquireLock (features/scheduler/controllers/scheduler.controller.js:62:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"b9e9bdd4","endpoint":"/api/scheduler/acquire-lock","method":"POST","httpStatus":200,"durationMs":32,"timestamp":"2026-05-26T08:09:29.659Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"05d674dc","endpoint":"/api/scheduler/acquire-lock","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:29.670Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"lock_acquire","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","preferenceSet":"test-preference-set-id-123","granted":false,"reason":"device_not_active"}
+
+      at acquireLock (features/scheduler/controllers/scheduler.controller.js:62:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"05d674dc","endpoint":"/api/scheduler/acquire-lock","method":"POST","httpStatus":200,"durationMs":8,"timestamp":"2026-05-26T08:09:29.678Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"82b61c7d","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:29.778Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_activated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"android"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"82b61c7d","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":61,"timestamp":"2026-05-26T08:09:29.839Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"c2dd3f89","endpoint":"/api/scheduler/acquire-lock","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:29.850Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"lock_acquire","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","preferenceSet":"test-preference-set-id-123","granted":true,"reason":null}
+
+      at acquireLock (features/scheduler/controllers/scheduler.controller.js:62:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"c2dd3f89","endpoint":"/api/scheduler/acquire-lock","method":"POST","httpStatus":200,"durationMs":32,"timestamp":"2026-05-26T08:09:29.882Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"06424c6e","endpoint":"/api/scheduler/release-lock","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:29.892Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"lock_release","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","preferenceSet":"test-preference-set-id-123","released":true}
+
+      at releaseLock (features/scheduler/controllers/scheduler.controller.js:94:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"06424c6e","endpoint":"/api/scheduler/release-lock","method":"POST","httpStatus":200,"durationMs":28,"timestamp":"2026-05-26T08:09:29.920Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"0d43bf93","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:29.956Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_activated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"android"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"0d43bf93","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":57,"timestamp":"2026-05-26T08:09:30.013Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"c535319c","endpoint":"/api/scheduler/acquire-lock","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:30.032Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"lock_acquire","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","preferenceSet":"test-preference-set-id-123","granted":true,"reason":null}
+
+      at acquireLock (features/scheduler/controllers/scheduler.controller.js:62:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"c535319c","endpoint":"/api/scheduler/acquire-lock","method":"POST","httpStatus":200,"durationMs":33,"timestamp":"2026-05-26T08:09:30.065Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"824f6494","endpoint":"/api/scheduler/release-lock","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:30.077Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"lock_release","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","preferenceSet":"test-preference-set-id-123","released":false}
+
+      at releaseLock (features/scheduler/controllers/scheduler.controller.js:94:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"824f6494","endpoint":"/api/scheduler/release-lock","method":"POST","httpStatus":200,"durationMs":8,"timestamp":"2026-05-26T08:09:30.085Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"4b3a7618","endpoint":"/api/scheduler/release-lock","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:30.097Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"lock_release","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","preferenceSet":"test-preference-set-id-123","released":true}
+
+      at releaseLock (features/scheduler/controllers/scheduler.controller.js:94:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"4b3a7618","endpoint":"/api/scheduler/release-lock","method":"POST","httpStatus":200,"durationMs":28,"timestamp":"2026-05-26T08:09:30.125Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"2438bfda","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:30.168Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_activated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"android"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"2438bfda","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":41,"timestamp":"2026-05-26T08:09:30.209Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"435ab258","endpoint":"/api/scheduler/acquire-lock","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:30.235Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"lock_acquire","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","preferenceSet":"test-preference-set-id-123","granted":true,"reason":null}
+
+      at acquireLock (features/scheduler/controllers/scheduler.controller.js:62:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"435ab258","endpoint":"/api/scheduler/acquire-lock","method":"POST","httpStatus":200,"durationMs":38,"timestamp":"2026-05-26T08:09:30.273Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"d92d257c","endpoint":"/api/scheduler/release-lock","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:30.283Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"lock_release","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","preferenceSet":"test-preference-set-id-123","released":true}
+
+      at releaseLock (features/scheduler/controllers/scheduler.controller.js:94:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"d92d257c","endpoint":"/api/scheduler/release-lock","method":"POST","httpStatus":200,"durationMs":27,"timestamp":"2026-05-26T08:09:30.310Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"4eb763a9","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:30.319Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_takeover","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"electron"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"4eb763a9","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":42,"timestamp":"2026-05-26T08:09:30.361Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"31e1814c","endpoint":"/api/scheduler/acquire-lock","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:30.371Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"lock_acquire","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","preferenceSet":"test-preference-set-id-123","granted":true,"reason":null}
+
+      at acquireLock (features/scheduler/controllers/scheduler.controller.js:62:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"31e1814c","endpoint":"/api/scheduler/acquire-lock","method":"POST","httpStatus":200,"durationMs":33,"timestamp":"2026-05-26T08:09:30.404Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"6519c834","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:30.453Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_activated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"android"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"6519c834","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":51,"timestamp":"2026-05-26T08:09:30.504Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"6239c46d","endpoint":"/api/scheduler/acquire-lock","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:30.515Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"lock_acquire","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","preferenceSet":"pref-expire-test","granted":true,"reason":null}
+
+      at acquireLock (features/scheduler/controllers/scheduler.controller.js:62:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"6239c46d","endpoint":"/api/scheduler/acquire-lock","method":"POST","httpStatus":200,"durationMs":47,"timestamp":"2026-05-26T08:09:30.562Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"989c713f","endpoint":"/api/scheduler/acquire-lock","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:30.571Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"lock_acquire","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","preferenceSet":"pref-expire-test","granted":false,"reason":"device_not_active"}
+
+      at acquireLock (features/scheduler/controllers/scheduler.controller.js:62:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"989c713f","endpoint":"/api/scheduler/acquire-lock","method":"POST","httpStatus":200,"durationMs":7,"timestamp":"2026-05-26T08:09:30.578Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"f2615611","endpoint":"/api/scheduler/release-lock","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:30.601Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"lock_release","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","preferenceSet":"pref-expire-test","released":true}
+
+      at releaseLock (features/scheduler/controllers/scheduler.controller.js:94:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"f2615611","endpoint":"/api/scheduler/release-lock","method":"POST","httpStatus":200,"durationMs":34,"timestamp":"2026-05-26T08:09:30.635Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"cd2f434f","endpoint":"/api/scheduler/check-emailed-jobs","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:30.649Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"check_emailed","userEmail":"sc***@fundocareer.com","total":3,"already":0,"newHits":3}
+
+      at checkEmailedJobs (features/scheduler/controllers/scheduler.controller.js:125:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"cd2f434f","endpoint":"/api/scheduler/check-emailed-jobs","method":"POST","httpStatus":200,"durationMs":11,"timestamp":"2026-05-26T08:09:30.660Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"a89a5f2f","endpoint":"/api/scheduler/mark-emailed-jobs","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:30.673Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"mark_emailed","userEmail":"sc***@fundocareer.com","requested":2,"marked":2,"duplicates":0}
+
+      at markEmailedJobs (features/scheduler/controllers/scheduler.controller.js:159:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"a89a5f2f","endpoint":"/api/scheduler/mark-emailed-jobs","method":"POST","httpStatus":200,"durationMs":35,"timestamp":"2026-05-26T08:09:30.708Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"abec459c","endpoint":"/api/scheduler/mark-emailed-jobs","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:30.719Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"mark_emailed","userEmail":"sc***@fundocareer.com","requested":3,"marked":1,"duplicates":2}
+
+      at markEmailedJobs (features/scheduler/controllers/scheduler.controller.js:159:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"abec459c","endpoint":"/api/scheduler/mark-emailed-jobs","method":"POST","httpStatus":200,"durationMs":26,"timestamp":"2026-05-26T08:09:30.745Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"e2b6a5c3","endpoint":"/api/scheduler/check-emailed-jobs","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:30.756Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"check_emailed","userEmail":"sc***@fundocareer.com","total":3,"already":3,"newHits":0}
+
+      at checkEmailedJobs (features/scheduler/controllers/scheduler.controller.js:125:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"e2b6a5c3","endpoint":"/api/scheduler/check-emailed-jobs","method":"POST","httpStatus":200,"durationMs":8,"timestamp":"2026-05-26T08:09:30.764Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"d9217720","endpoint":"/api/scheduler/sync-state","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:30.775Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"sync_state","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","type":"android"}
+
+      at syncState (features/scheduler/controllers/scheduler.controller.js:190:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"d9217720","endpoint":"/api/scheduler/sync-state","method":"POST","httpStatus":200,"durationMs":54,"timestamp":"2026-05-26T08:09:30.829Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"987e2b47","endpoint":"/api/scheduler/state","method":"GET","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:30.841Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"987e2b47","endpoint":"/api/scheduler/state","method":"GET","httpStatus":200,"durationMs":17,"timestamp":"2026-05-26T08:09:30.858Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"8b4a1594","endpoint":"/api/scheduler/history-summary","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:30.870Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"8b4a1594","endpoint":"/api/scheduler/history-summary","method":"POST","httpStatus":200,"durationMs":27,"timestamp":"2026-05-26T08:09:30.897Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"08392236","endpoint":"/api/scheduler/acquire-lock","method":"POST","userEmail":null,"hasAuthHeader":false,"timestamp":"2026-05-26T08:09:30.907Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"08392236","endpoint":"/api/scheduler/acquire-lock","method":"POST","httpStatus":401,"durationMs":4,"timestamp":"2026-05-26T08:09:30.911Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"8fa56819","endpoint":"/api/scheduler/acquire-lock","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:30.921Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"8fa56819","endpoint":"/api/scheduler/acquire-lock","method":"POST","httpStatus":400,"durationMs":3,"timestamp":"2026-05-26T08:09:30.924Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"02df5f0a","endpoint":"/api/notifications/send-email","method":"POST","userEmail":"sc***@fundocareer.com","hasAuthHeader":false,"timestamp":"2026-05-26T08:09:30.937Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"02df5f0a","endpoint":"/api/notifications/send-email","method":"POST","httpStatus":401,"durationMs":3,"timestamp":"2026-05-26T08:09:30.940Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"1a48b92e","endpoint":"/api/notifications/send-email","method":"POST","userEmail":"sc***@fundocareer.com","hasAuthHeader":true,"timestamp":"2026-05-26T08:09:30.953Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"email_request_received","timestamp":"2026-05-26T08:09:30.957Z","requestLogId":"6ad54d91","userEmail":"scheduler-test@fundocareer.com","to":"s***@fundocareer.com","newJobsCount":0,"allJobsCount":0,"deviceId":"(none)","runId":null}
+
+      at log (features/notifications/controllers/notifications.controller.js:21:13)
+
+  console.log
+    {"event":"email_validation_failed","timestamp":"2026-05-26T08:09:30.960Z","requestLogId":"6ad54d91","reason":"Missing to or preferenceId"}
+
+      at log (features/notifications/controllers/notifications.controller.js:21:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"1a48b92e","endpoint":"/api/notifications/send-email","method":"POST","httpStatus":400,"durationMs":10,"timestamp":"2026-05-26T08:09:30.963Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"aa39f965","endpoint":"/api/notifications/send-email","method":"POST","userEmail":"sc***@fundocareer.com","hasAuthHeader":true,"timestamp":"2026-05-26T08:09:30.975Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"email_request_received","timestamp":"2026-05-26T08:09:30.978Z","requestLogId":"b96f27ad","userEmail":"scheduler-test@fundocareer.com","to":"s***@fundocareer.com","preferenceId":"test-pref","newJobsCount":0,"allJobsCount":0,"deviceId":"(none)","runId":null}
+
+      at log (features/notifications/controllers/notifications.controller.js:21:13)
+
+  console.log
+    {"event":"email_sent","logId":"67c74beb","to":"s***@fundocareer.com","messageId":"<e00997c9-478a-71ff-30ab-73015d8a4b05@gmail.com>","subject":"FundoCareer ΓÇö No new matching jobs for \"test-pref\"","attachmentCount":0,"attempt":1,"timestamp":"2026-05-26T08:09:33.702Z"}
+
+      at sendEmail (services/email.service.js:162:15)
+
+  console.log
+    {"event":"email_sent_success","timestamp":"2026-05-26T08:09:33.703Z","requestLogId":"b96f27ad","userEmail":"scheduler-test@fundocareer.com","to":"s***@fundocareer.com","preferenceId":"test-pref","runId":null,"jobsInEmail":0,"pdfAttached":false,"errorCode":"ZERO_JOB_EMAIL_SENT"}
+
+      at log (features/notifications/controllers/notifications.controller.js:21:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"aa39f965","endpoint":"/api/notifications/send-email","method":"POST","httpStatus":200,"durationMs":2729,"timestamp":"2026-05-26T08:09:33.704Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"8f69639d","endpoint":"/api/notifications/send-email","method":"POST","userEmail":"sc***@fundocareer.com","hasAuthHeader":true,"timestamp":"2026-05-26T08:09:33.719Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"email_request_received","timestamp":"2026-05-26T08:09:33.721Z","requestLogId":"2a60d19c","userEmail":"scheduler-test@fundocareer.com","to":"s***@fundocareer.com","preferenceId":"test-pref","newJobsCount":51,"allJobsCount":0,"deviceId":"(none)","runId":null}
+
+      at log (features/notifications/controllers/notifications.controller.js:21:13)
+
+  console.error
+    {"event":"email_send_failed","timestamp":"2026-05-26T08:09:33.723Z","requestLogId":"2a60d19c","userEmail":"scheduler-test@fundocareer.com","preferenceId":"test-pref","errorCode":"TOO_MANY_JOBS"}
+
+    [0m [90m 17 |[39m   [36mconst[39m entry [33m=[39m { event[33m,[39m timestamp[33m:[39m [36mnew[39m [33mDate[39m()[33m.[39mtoISOString()[33m,[39m [33m...[39mdata }[33m;[39m
+     [90m 18 |[39m   [36mif[39m (level [33m===[39m [32m'error'[39m) {
+    [31m[1m>[22m[39m[90m 19 |[39m     console[33m.[39merror([33mJSON[39m[33m.[39mstringify(entry))[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 20 |[39m   } [36melse[39m {
+     [90m 21 |[39m     console[33m.[39mlog([33mJSON[39m[33m.[39mstringify(entry))[33m;[39m
+     [90m 22 |[39m   }[0m
+
+      at log (features/notifications/controllers/notifications.controller.js:19:13)
+      at sendJobAlertEmail (features/notifications/controllers/notifications.controller.js:69:7)
+
+  console.log
+    {"event":"api_request_finished","requestId":"8f69639d","endpoint":"/api/notifications/send-email","method":"POST","httpStatus":400,"durationMs":12,"timestamp":"2026-05-26T08:09:33.731Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"fcd8a330","endpoint":"/api/notifications/send-email","method":"POST","userEmail":"ot***@email.com","hasAuthHeader":true,"timestamp":"2026-05-26T08:09:33.748Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"email_request_received","timestamp":"2026-05-26T08:09:33.750Z","requestLogId":"9fcd713a","userEmail":"scheduler-test@fundocareer.com","to":"o***@email.com","preferenceId":"test-pref","newJobsCount":2,"allJobsCount":0,"deviceId":"(none)","runId":null}
+
+      at log (features/notifications/controllers/notifications.controller.js:21:13)
+
+  console.error
+    {"event":"email_send_failed","timestamp":"2026-05-26T08:09:33.752Z","requestLogId":"9fcd713a","userEmail":"scheduler-test@fundocareer.com","preferenceId":"test-pref","errorCode":"RECIPIENT_MISMATCH"}
+
+    [0m [90m 17 |[39m   [36mconst[39m entry [33m=[39m { event[33m,[39m timestamp[33m:[39m [36mnew[39m [33mDate[39m()[33m.[39mtoISOString()[33m,[39m [33m...[39mdata }[33m;[39m
+     [90m 18 |[39m   [36mif[39m (level [33m===[39m [32m'error'[39m) {
+    [31m[1m>[22m[39m[90m 19 |[39m     console[33m.[39merror([33mJSON[39m[33m.[39mstringify(entry))[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 20 |[39m   } [36melse[39m {
+     [90m 21 |[39m     console[33m.[39mlog([33mJSON[39m[33m.[39mstringify(entry))[33m;[39m
+     [90m 22 |[39m   }[0m
+
+      at log (features/notifications/controllers/notifications.controller.js:19:13)
+      at sendJobAlertEmail (features/notifications/controllers/notifications.controller.js:69:7)
+
+  console.log
+    {"event":"api_request_finished","requestId":"fcd8a330","endpoint":"/api/notifications/send-email","method":"POST","httpStatus":403,"durationMs":8,"timestamp":"2026-05-26T08:09:33.756Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"d6d9374a","endpoint":"/api/notifications/send-email","method":"POST","userEmail":"sc***@fundocareer.com","hasAuthHeader":true,"timestamp":"2026-05-26T08:09:33.769Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"email_request_received","timestamp":"2026-05-26T08:09:33.771Z","requestLogId":"66bdb3e2","userEmail":"scheduler-test@fundocareer.com","to":"s***@fundocareer.com","preferenceId":"test-pref-metadata","newJobsCount":1,"allJobsCount":5,"deviceId":"test...vice","runId":"test-run-123"}
+
+      at log (features/notifications/controllers/notifications.controller.js:21:13)
+
+  console.log
+    [Puppeteer] Launching browser instance...
+
+      at getBrowser (shared/services/puppeteer.service.js:13:11)
+
+  console.error
+    [Puppeteer] PDF generation failed: Could not find Chrome (ver. 145.0.7632.77). This can occur if either
+     1. you did not perform an installation before running the script (e.g. `npx puppeteer browsers install chrome`) or
+     2. your cache path is incorrectly configured (which is: C:\Users\Alexa\.cache\puppeteer).
+    For (2), check out our guide on configuring puppeteer at https://pptr.dev/guides/configuration.
+
+    [0m [90m 116 |[39m
+     [90m 117 |[39m   } [36mcatch[39m (error) {
+    [31m[1m>[22m[39m[90m 118 |[39m     console[33m.[39merror([32m"[Puppeteer] PDF generation failed:"[39m[33m,[39m error[33m.[39mmessage)[33m;[39m
+     [90m     |[39m             [31m[1m^[22m[39m
+     [90m 119 |[39m     [36mif[39m (browserInstance) {
+     [90m 120 |[39m       [36mtry[39m { [36mawait[39m browserInstance[33m.[39mclose()[33m;[39m } [36mcatch[39m (e) { console[33m.[39merror([32m"[Puppeteer] Failed to close browser during error:"[39m[33m,[39m e)[33m;[39m }
+     [90m 121 |[39m       browserInstance [33m=[39m [36mnull[39m[33m;[39m[0m
+
+      at generatePdfFromHtml (shared/services/puppeteer.service.js:118:13)
+      at generateJobAlertPdf (features/notifications/services/jobAlertPdf.service.js:224:17)
+      at sendJobAlertEmailService (features/notifications/services/notification.service.js:222:25)
+      at sendJobAlertEmail (features/notifications/controllers/notifications.controller.js:64:20)
+
+  console.error
+    [JobAlertPdf] Generation failed: Could not find Chrome (ver. 145.0.7632.77). This can occur if either
+     1. you did not perform an installation before running the script (e.g. `npx puppeteer browsers install chrome`) or
+     2. your cache path is incorrectly configured (which is: C:\Users\Alexa\.cache\puppeteer).
+    For (2), check out our guide on configuring puppeteer at https://pptr.dev/guides/configuration.
+
+    [0m [90m 227 |[39m     [36mreturn[39m { success[33m:[39m [36mtrue[39m[33m,[39m buffer[33m:[39m [33mBuffer[39m[33m.[39m[36mfrom[39m(raw) }[33m;[39m
+     [90m 228 |[39m   } [36mcatch[39m (error) {
+    [31m[1m>[22m[39m[90m 229 |[39m     console[33m.[39merror([32m'[JobAlertPdf] Generation failed:'[39m[33m,[39m error[33m.[39mmessage)[33m;[39m
+     [90m     |[39m             [31m[1m^[22m[39m
+     [90m 230 |[39m     [36mreturn[39m { success[33m:[39m [36mfalse[39m[33m,[39m error[33m:[39m error[33m.[39mmessage }[33m;[39m
+     [90m 231 |[39m   }
+     [90m 232 |[39m }[0m
+
+      at generateJobAlertPdf (features/notifications/services/jobAlertPdf.service.js:229:13)
+      at sendJobAlertEmailService (features/notifications/services/notification.service.js:222:25)
+      at sendJobAlertEmail (features/notifications/controllers/notifications.controller.js:64:20)
+
+  console.log
+    {"event":"email_sent","logId":"21b111e9","to":"s***@fundocareer.com","messageId":"<ae11c704-2c6d-f081-c53e-9594bd09ee77@gmail.com>","subject":"FundoCareer ΓÇö 1 new job for \"Test Role\"","attachmentCount":0,"attempt":1,"timestamp":"2026-05-26T08:09:36.525Z"}
+
+      at sendEmail (services/email.service.js:162:15)
+
+  console.log
+    {"event":"email_sent_success","timestamp":"2026-05-26T08:09:36.620Z","requestLogId":"66bdb3e2","userEmail":"scheduler-test@fundocareer.com","to":"s***@fundocareer.com","preferenceId":"test-pref-metadata","runId":"test-run-123","jobsInEmail":1,"pdfAttached":false,"errorCode":"EMAIL_SENT"}
+
+      at log (features/notifications/controllers/notifications.controller.js:21:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"d6d9374a","endpoint":"/api/notifications/send-email","method":"POST","httpStatus":200,"durationMs":2853,"timestamp":"2026-05-26T08:09:36.622Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"803f42e3","endpoint":"/api/notifications/send-email","method":"POST","userEmail":"sc***@fundocareer.com","hasAuthHeader":true,"timestamp":"2026-05-26T08:09:36.635Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"email_request_received","timestamp":"2026-05-26T08:09:36.638Z","requestLogId":"41182385","userEmail":"scheduler-test@fundocareer.com","to":"s***@fundocareer.com","preferenceId":"test-pref-attachment","newJobsCount":1,"allJobsCount":0,"deviceId":"(none)","runId":null}
+
+      at log (features/notifications/controllers/notifications.controller.js:21:13)
+
+  console.log
+    [Puppeteer] Launching browser instance...
+
+      at getBrowser (shared/services/puppeteer.service.js:13:11)
+
+  console.error
+    [Puppeteer] PDF generation failed: Could not find Chrome (ver. 145.0.7632.77). This can occur if either
+     1. you did not perform an installation before running the script (e.g. `npx puppeteer browsers install chrome`) or
+     2. your cache path is incorrectly configured (which is: C:\Users\Alexa\.cache\puppeteer).
+    For (2), check out our guide on configuring puppeteer at https://pptr.dev/guides/configuration.
+
+    [0m [90m 116 |[39m
+     [90m 117 |[39m   } [36mcatch[39m (error) {
+    [31m[1m>[22m[39m[90m 118 |[39m     console[33m.[39merror([32m"[Puppeteer] PDF generation failed:"[39m[33m,[39m error[33m.[39mmessage)[33m;[39m
+     [90m     |[39m             [31m[1m^[22m[39m
+     [90m 119 |[39m     [36mif[39m (browserInstance) {
+     [90m 120 |[39m       [36mtry[39m { [36mawait[39m browserInstance[33m.[39mclose()[33m;[39m } [36mcatch[39m (e) { console[33m.[39merror([32m"[Puppeteer] Failed to close browser during error:"[39m[33m,[39m e)[33m;[39m }
+     [90m 121 |[39m       browserInstance [33m=[39m [36mnull[39m[33m;[39m[0m
+
+      at generatePdfFromHtml (shared/services/puppeteer.service.js:118:13)
+      at generateJobAlertPdf (features/notifications/services/jobAlertPdf.service.js:224:17)
+      at sendJobAlertEmailService (features/notifications/services/notification.service.js:222:25)
+      at sendJobAlertEmail (features/notifications/controllers/notifications.controller.js:64:20)
+
+  console.error
+    [JobAlertPdf] Generation failed: Could not find Chrome (ver. 145.0.7632.77). This can occur if either
+     1. you did not perform an installation before running the script (e.g. `npx puppeteer browsers install chrome`) or
+     2. your cache path is incorrectly configured (which is: C:\Users\Alexa\.cache\puppeteer).
+    For (2), check out our guide on configuring puppeteer at https://pptr.dev/guides/configuration.
+
+    [0m [90m 227 |[39m     [36mreturn[39m { success[33m:[39m [36mtrue[39m[33m,[39m buffer[33m:[39m [33mBuffer[39m[33m.[39m[36mfrom[39m(raw) }[33m;[39m
+     [90m 228 |[39m   } [36mcatch[39m (error) {
+    [31m[1m>[22m[39m[90m 229 |[39m     console[33m.[39merror([32m'[JobAlertPdf] Generation failed:'[39m[33m,[39m error[33m.[39mmessage)[33m;[39m
+     [90m     |[39m             [31m[1m^[22m[39m
+     [90m 230 |[39m     [36mreturn[39m { success[33m:[39m [36mfalse[39m[33m,[39m error[33m:[39m error[33m.[39mmessage }[33m;[39m
+     [90m 231 |[39m   }
+     [90m 232 |[39m }[0m
+
+      at generateJobAlertPdf (features/notifications/services/jobAlertPdf.service.js:229:13)
+      at sendJobAlertEmailService (features/notifications/services/notification.service.js:222:25)
+      at sendJobAlertEmail (features/notifications/controllers/notifications.controller.js:64:20)
+
+  console.log
+    {"event":"email_sent","logId":"62f92a7a","to":"s***@fundocareer.com","messageId":"<51c38556-1511-ed60-4f38-5ef8b95c17f2@gmail.com>","subject":"FundoCareer ΓÇö 1 new job for \"test-pref-attachment\"","attachmentCount":0,"attempt":1,"timestamp":"2026-05-26T08:09:39.415Z"}
+
+      at sendEmail (services/email.service.js:162:15)
+
+  console.log
+    {"event":"email_sent_success","timestamp":"2026-05-26T08:09:39.460Z","requestLogId":"41182385","userEmail":"scheduler-test@fundocareer.com","to":"s***@fundocareer.com","preferenceId":"test-pref-attachment","runId":null,"jobsInEmail":1,"pdfAttached":false,"errorCode":"EMAIL_SENT"}
+
+      at log (features/notifications/controllers/notifications.controller.js:21:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"803f42e3","endpoint":"/api/notifications/send-email","method":"POST","httpStatus":200,"durationMs":2828,"timestamp":"2026-05-26T08:09:39.463Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"ff1e3617","endpoint":"/api/notifications/send-email","method":"POST","userEmail":"sc***@fundocareer.com","hasAuthHeader":true,"timestamp":"2026-05-26T08:09:39.606Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"email_request_received","timestamp":"2026-05-26T08:09:39.611Z","requestLogId":"2fba44ae","userEmail":"scheduler-test@fundocareer.com","to":"s***@fundocareer.com","preferenceId":"test-pref-big","newJobsCount":1,"allJobsCount":0,"deviceId":"(none)","runId":null}
+
+      at log (features/notifications/controllers/notifications.controller.js:21:13)
+
+  console.log
+    [Puppeteer] Launching browser instance...
+
+      at getBrowser (shared/services/puppeteer.service.js:13:11)
+
+  console.error
+    [Puppeteer] PDF generation failed: Could not find Chrome (ver. 145.0.7632.77). This can occur if either
+     1. you did not perform an installation before running the script (e.g. `npx puppeteer browsers install chrome`) or
+     2. your cache path is incorrectly configured (which is: C:\Users\Alexa\.cache\puppeteer).
+    For (2), check out our guide on configuring puppeteer at https://pptr.dev/guides/configuration.
+
+    [0m [90m 116 |[39m
+     [90m 117 |[39m   } [36mcatch[39m (error) {
+    [31m[1m>[22m[39m[90m 118 |[39m     console[33m.[39merror([32m"[Puppeteer] PDF generation failed:"[39m[33m,[39m error[33m.[39mmessage)[33m;[39m
+     [90m     |[39m             [31m[1m^[22m[39m
+     [90m 119 |[39m     [36mif[39m (browserInstance) {
+     [90m 120 |[39m       [36mtry[39m { [36mawait[39m browserInstance[33m.[39mclose()[33m;[39m } [36mcatch[39m (e) { console[33m.[39merror([32m"[Puppeteer] Failed to close browser during error:"[39m[33m,[39m e)[33m;[39m }
+     [90m 121 |[39m       browserInstance [33m=[39m [36mnull[39m[33m;[39m[0m
+
+      at generatePdfFromHtml (shared/services/puppeteer.service.js:118:13)
+      at generateJobAlertPdf (features/notifications/services/jobAlertPdf.service.js:224:17)
+      at sendJobAlertEmailService (features/notifications/services/notification.service.js:222:25)
+      at sendJobAlertEmail (features/notifications/controllers/notifications.controller.js:64:20)
+
+  console.error
+    [JobAlertPdf] Generation failed: Could not find Chrome (ver. 145.0.7632.77). This can occur if either
+     1. you did not perform an installation before running the script (e.g. `npx puppeteer browsers install chrome`) or
+     2. your cache path is incorrectly configured (which is: C:\Users\Alexa\.cache\puppeteer).
+    For (2), check out our guide on configuring puppeteer at https://pptr.dev/guides/configuration.
+
+    [0m [90m 227 |[39m     [36mreturn[39m { success[33m:[39m [36mtrue[39m[33m,[39m buffer[33m:[39m [33mBuffer[39m[33m.[39m[36mfrom[39m(raw) }[33m;[39m
+     [90m 228 |[39m   } [36mcatch[39m (error) {
+    [31m[1m>[22m[39m[90m 229 |[39m     console[33m.[39merror([32m'[JobAlertPdf] Generation failed:'[39m[33m,[39m error[33m.[39mmessage)[33m;[39m
+     [90m     |[39m             [31m[1m^[22m[39m
+     [90m 230 |[39m     [36mreturn[39m { success[33m:[39m [36mfalse[39m[33m,[39m error[33m:[39m error[33m.[39mmessage }[33m;[39m
+     [90m 231 |[39m   }
+     [90m 232 |[39m }[0m
+
+      at generateJobAlertPdf (features/notifications/services/jobAlertPdf.service.js:229:13)
+      at sendJobAlertEmailService (features/notifications/services/notification.service.js:222:25)
+      at sendJobAlertEmail (features/notifications/controllers/notifications.controller.js:64:20)
+
+  console.log
+    {"event":"email_sent","logId":"38dd356f","to":"s***@fundocareer.com","messageId":"<ba872436-b42c-c1f4-d057-e8076eec62f7@gmail.com>","subject":"FundoCareer ΓÇö 1 new job for \"test-pref-big\"","attachmentCount":0,"attempt":1,"timestamp":"2026-05-26T08:09:42.993Z"}
+
+      at sendEmail (services/email.service.js:162:15)
+
+  console.log
+    {"event":"email_sent_success","timestamp":"2026-05-26T08:09:43.058Z","requestLogId":"2fba44ae","userEmail":"scheduler-test@fundocareer.com","to":"s***@fundocareer.com","preferenceId":"test-pref-big","runId":null,"jobsInEmail":1,"pdfAttached":false,"errorCode":"EMAIL_SENT"}
+
+      at log (features/notifications/controllers/notifications.controller.js:21:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"ff1e3617","endpoint":"/api/notifications/send-email","method":"POST","httpStatus":200,"durationMs":3454,"timestamp":"2026-05-26T08:09:43.060Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"3cbf5642","endpoint":"/api/scheduler/active-device","method":"GET","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:43.096Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"3cbf5642","endpoint":"/api/scheduler/active-device","method":"GET","httpStatus":200,"durationMs":8,"timestamp":"2026-05-26T08:09:43.104Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"5f1f7102","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:43.118Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_activated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"android"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"5f1f7102","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":36,"timestamp":"2026-05-26T08:09:43.154Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"b087bfa6","endpoint":"/api/scheduler/active-device","method":"GET","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:43.165Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"b087bfa6","endpoint":"/api/scheduler/active-device","method":"GET","httpStatus":200,"durationMs":7,"timestamp":"2026-05-26T08:09:43.172Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"e80e600f","endpoint":"/api/scheduler/active-device","method":"GET","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:43.186Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"e80e600f","endpoint":"/api/scheduler/active-device","method":"GET","httpStatus":200,"durationMs":8,"timestamp":"2026-05-26T08:09:43.194Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"75eeba5a","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:43.223Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_activated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"android"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"75eeba5a","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":34,"timestamp":"2026-05-26T08:09:43.257Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"1d5f3d01","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:43.267Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_activation_conflict","userEmail":"sc***@fundocareer.com","requester":"devi...uuid","active":"devi...uuid"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:284:15)
+
+  console.log
+    {"event":"api_request_finished","requestId":"1d5f3d01","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":409,"durationMs":9,"timestamp":"2026-05-26T08:09:43.276Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"a735f59f","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:43.288Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_takeover","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"electron"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"a735f59f","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":45,"timestamp":"2026-05-26T08:09:43.333Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"eda324af","endpoint":"/api/scheduler/active-device","method":"GET","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:43.341Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"eda324af","endpoint":"/api/scheduler/active-device","method":"GET","httpStatus":200,"durationMs":7,"timestamp":"2026-05-26T08:09:43.348Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"ea21b741","endpoint":"/api/scheduler/active-device/heartbeat","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:43.364Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_heartbeat","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","active":true}
+
+      at heartbeatDevice (features/scheduler/controllers/scheduler.controller.js:333:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"ea21b741","endpoint":"/api/scheduler/active-device/heartbeat","method":"POST","httpStatus":200,"durationMs":33,"timestamp":"2026-05-26T08:09:43.397Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"c8f8919e","endpoint":"/api/scheduler/active-device/heartbeat","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:43.409Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_heartbeat","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","active":false}
+
+      at heartbeatDevice (features/scheduler/controllers/scheduler.controller.js:333:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"c8f8919e","endpoint":"/api/scheduler/active-device/heartbeat","method":"POST","httpStatus":200,"durationMs":7,"timestamp":"2026-05-26T08:09:43.416Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"9952c777","endpoint":"/api/scheduler/active-device/verify","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:43.430Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"9952c777","endpoint":"/api/scheduler/active-device/verify","method":"POST","httpStatus":200,"durationMs":7,"timestamp":"2026-05-26T08:09:43.437Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"c464512b","endpoint":"/api/scheduler/active-device/verify","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:43.447Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"c464512b","endpoint":"/api/scheduler/active-device/verify","method":"POST","httpStatus":200,"durationMs":7,"timestamp":"2026-05-26T08:09:43.454Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"0eac50a7","endpoint":"/api/scheduler/active-device/deactivate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:43.463Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_deactivated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid"}
+
+      at deactivateDevice (features/scheduler/controllers/scheduler.controller.js:377:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"0eac50a7","endpoint":"/api/scheduler/active-device/deactivate","method":"POST","httpStatus":200,"durationMs":43,"timestamp":"2026-05-26T08:09:43.506Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"63491353","endpoint":"/api/scheduler/active-device/verify","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:43.518Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"63491353","endpoint":"/api/scheduler/active-device/verify","method":"POST","httpStatus":200,"durationMs":7,"timestamp":"2026-05-26T08:09:43.525Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"e8e08f0a","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:43.536Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_activated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"android"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"e8e08f0a","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":41,"timestamp":"2026-05-26T08:09:43.577Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"8d68e80d","endpoint":"/api/scheduler/active-device/deactivate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:43.591Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_deactivation_skipped","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","reason":"not_active_device"}
+
+      at deactivateDevice (features/scheduler/controllers/scheduler.controller.js:364:15)
+
+  console.log
+    {"event":"api_request_finished","requestId":"8d68e80d","endpoint":"/api/scheduler/active-device/deactivate","method":"POST","httpStatus":200,"durationMs":7,"timestamp":"2026-05-26T08:09:43.598Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"dd02bb71","endpoint":"/api/scheduler/active-device/deactivate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:43.607Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_deactivated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid"}
+
+      at deactivateDevice (features/scheduler/controllers/scheduler.controller.js:377:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"dd02bb71","endpoint":"/api/scheduler/active-device/deactivate","method":"POST","httpStatus":200,"durationMs":36,"timestamp":"2026-05-26T08:09:43.643Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"10822c81","endpoint":"/api/scheduler/active-device","method":"GET","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:43.650Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"10822c81","endpoint":"/api/scheduler/active-device","method":"GET","httpStatus":200,"durationMs":9,"timestamp":"2026-05-26T08:09:43.659Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"bb1440ed","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":false,"timestamp":"2026-05-26T08:09:43.673Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"bb1440ed","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":401,"durationMs":3,"timestamp":"2026-05-26T08:09:43.676Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"5690b5fa","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:43.687Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"5690b5fa","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":400,"durationMs":5,"timestamp":"2026-05-26T08:09:43.692Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"9f3ed8e5","endpoint":"/api/scheduler/active-device/deactivate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:43.703Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_deactivation_skipped","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","reason":"no_active_device"}
+
+      at deactivateDevice (features/scheduler/controllers/scheduler.controller.js:364:15)
+
+  console.log
+    {"event":"api_request_finished","requestId":"9f3ed8e5","endpoint":"/api/scheduler/active-device/deactivate","method":"POST","httpStatus":200,"durationMs":8,"timestamp":"2026-05-26T08:09:43.711Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"ed31fe49","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:43.723Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_activated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"android"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"ed31fe49","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":64,"timestamp":"2026-05-26T08:09:43.787Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"0e5968f8","endpoint":"/api/scheduler/active-device","method":"GET","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:43.796Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"0e5968f8","endpoint":"/api/scheduler/active-device","method":"GET","httpStatus":200,"durationMs":7,"timestamp":"2026-05-26T08:09:43.803Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"4656cb4a","endpoint":"/api/scheduler/active-device/deactivate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:43.816Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_deactivated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid"}
+
+      at deactivateDevice (features/scheduler/controllers/scheduler.controller.js:377:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"4656cb4a","endpoint":"/api/scheduler/active-device/deactivate","method":"POST","httpStatus":200,"durationMs":35,"timestamp":"2026-05-26T08:09:43.851Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"2c26acc8","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:43.863Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_activated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"android"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"2c26acc8","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":44,"timestamp":"2026-05-26T08:09:43.907Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"4fc2ac4b","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:43.919Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_activated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"android"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"4fc2ac4b","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":43,"timestamp":"2026-05-26T08:09:43.962Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"869469ca","endpoint":"/api/notifications/send-email","method":"POST","userEmail":"sc***@fundocareer.com","hasAuthHeader":true,"timestamp":"2026-05-26T08:09:43.971Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"email_request_received","timestamp":"2026-05-26T08:09:43.974Z","requestLogId":"4ac1c407","userEmail":"scheduler-test@fundocareer.com","to":"s***@fundocareer.com","preferenceId":"pref-email-test","newJobsCount":1,"allJobsCount":0,"deviceId":"devi...uuid","runId":null}
+
+      at log (features/notifications/controllers/notifications.controller.js:21:13)
+
+  console.log
+    [Puppeteer] Launching browser instance...
+
+      at getBrowser (shared/services/puppeteer.service.js:13:11)
+
+  console.error
+    [Puppeteer] PDF generation failed: Could not find Chrome (ver. 145.0.7632.77). This can occur if either
+     1. you did not perform an installation before running the script (e.g. `npx puppeteer browsers install chrome`) or
+     2. your cache path is incorrectly configured (which is: C:\Users\Alexa\.cache\puppeteer).
+    For (2), check out our guide on configuring puppeteer at https://pptr.dev/guides/configuration.
+
+    [0m [90m 116 |[39m
+     [90m 117 |[39m   } [36mcatch[39m (error) {
+    [31m[1m>[22m[39m[90m 118 |[39m     console[33m.[39merror([32m"[Puppeteer] PDF generation failed:"[39m[33m,[39m error[33m.[39mmessage)[33m;[39m
+     [90m     |[39m             [31m[1m^[22m[39m
+     [90m 119 |[39m     [36mif[39m (browserInstance) {
+     [90m 120 |[39m       [36mtry[39m { [36mawait[39m browserInstance[33m.[39mclose()[33m;[39m } [36mcatch[39m (e) { console[33m.[39merror([32m"[Puppeteer] Failed to close browser during error:"[39m[33m,[39m e)[33m;[39m }
+     [90m 121 |[39m       browserInstance [33m=[39m [36mnull[39m[33m;[39m[0m
+
+      at generatePdfFromHtml (shared/services/puppeteer.service.js:118:13)
+      at generateJobAlertPdf (features/notifications/services/jobAlertPdf.service.js:224:17)
+      at sendJobAlertEmailService (features/notifications/services/notification.service.js:222:25)
+      at sendJobAlertEmail (features/notifications/controllers/notifications.controller.js:64:20)
+
+  console.error
+    [JobAlertPdf] Generation failed: Could not find Chrome (ver. 145.0.7632.77). This can occur if either
+     1. you did not perform an installation before running the script (e.g. `npx puppeteer browsers install chrome`) or
+     2. your cache path is incorrectly configured (which is: C:\Users\Alexa\.cache\puppeteer).
+    For (2), check out our guide on configuring puppeteer at https://pptr.dev/guides/configuration.
+
+    [0m [90m 227 |[39m     [36mreturn[39m { success[33m:[39m [36mtrue[39m[33m,[39m buffer[33m:[39m [33mBuffer[39m[33m.[39m[36mfrom[39m(raw) }[33m;[39m
+     [90m 228 |[39m   } [36mcatch[39m (error) {
+    [31m[1m>[22m[39m[90m 229 |[39m     console[33m.[39merror([32m'[JobAlertPdf] Generation failed:'[39m[33m,[39m error[33m.[39mmessage)[33m;[39m
+     [90m     |[39m             [31m[1m^[22m[39m
+     [90m 230 |[39m     [36mreturn[39m { success[33m:[39m [36mfalse[39m[33m,[39m error[33m:[39m error[33m.[39mmessage }[33m;[39m
+     [90m 231 |[39m   }
+     [90m 232 |[39m }[0m
+
+      at generateJobAlertPdf (features/notifications/services/jobAlertPdf.service.js:229:13)
+      at sendJobAlertEmailService (features/notifications/services/notification.service.js:222:25)
+      at sendJobAlertEmail (features/notifications/controllers/notifications.controller.js:64:20)
+
+  console.log
+    {"event":"email_sent","logId":"d0cc7a87","to":"s***@fundocareer.com","messageId":"<1333aa67-60b9-ea5d-1130-43c596510bdb@gmail.com>","subject":"FundoCareer ΓÇö 1 new job for \"pref-email-test\"","attachmentCount":0,"attempt":1,"timestamp":"2026-05-26T08:09:46.647Z"}
+
+      at sendEmail (services/email.service.js:162:15)
+
+  console.log
+    {"event":"email_sent_success","timestamp":"2026-05-26T08:09:46.771Z","requestLogId":"4ac1c407","userEmail":"scheduler-test@fundocareer.com","to":"s***@fundocareer.com","preferenceId":"pref-email-test","runId":null,"jobsInEmail":1,"pdfAttached":false,"errorCode":"EMAIL_SENT"}
+
+      at log (features/notifications/controllers/notifications.controller.js:21:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"869469ca","endpoint":"/api/notifications/send-email","method":"POST","httpStatus":200,"durationMs":2804,"timestamp":"2026-05-26T08:09:46.775Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"3c2b5de2","endpoint":"/api/scheduler/active-device","method":"GET","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:46.782Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"3c2b5de2","endpoint":"/api/scheduler/active-device","method":"GET","httpStatus":200,"durationMs":9,"timestamp":"2026-05-26T08:09:46.791Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"2e4f03d0","endpoint":"/api/notifications/send-setup-email","method":"POST","userEmail":"sc***@fundocareer.com","hasAuthHeader":true,"timestamp":"2026-05-26T08:09:46.808Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"setup_email_request_received","timestamp":"2026-05-26T08:09:46.811Z","requestLogId":"87460110","endpoint":"/api/notifications/send-setup-email","userEmail":"scheduler-test@fundocareer.com","to":"s***@fundocareer.com","preferenceId":"pref-setup-test","deviceId":"(none)"}
+
+      at log (features/notifications/controllers/notifications.controller.js:21:13)
+
+  console.log
+    {"event":"email_sent","logId":"ce667d0f","to":"s***@fundocareer.com","messageId":"<19e2f6c2-dcf8-749c-2fa2-6966c9057744@gmail.com>","subject":"FundoCareer ΓÇö Job Search Preferences Set Successfully","attachmentCount":0,"attempt":1,"timestamp":"2026-05-26T08:09:49.405Z"}
+
+      at sendEmail (services/email.service.js:162:15)
+
+  console.log
+    {"event":"setup_email_sent_success","timestamp":"2026-05-26T08:09:49.432Z","requestLogId":"87460110","endpoint":"/api/notifications/send-setup-email","httpStatus":200,"userEmail":"scheduler-test@fundocareer.com","to":"s***@fundocareer.com","preferenceId":"pref-setup-test","errorCode":"EMAIL_SENT"}
+
+      at log (features/notifications/controllers/notifications.controller.js:21:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"2e4f03d0","endpoint":"/api/notifications/send-setup-email","method":"POST","httpStatus":200,"durationMs":2630,"timestamp":"2026-05-26T08:09:49.438Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"4446fb3d","endpoint":"/api/scheduler/active-device","method":"GET","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:49.448Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"4446fb3d","endpoint":"/api/scheduler/active-device","method":"GET","httpStatus":200,"durationMs":11,"timestamp":"2026-05-26T08:09:49.459Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"e4cd60a8","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:49.522Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_activated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"android"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"e4cd60a8","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":70,"timestamp":"2026-05-26T08:09:49.592Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"4ca20bd8","endpoint":"/api/scheduler/active-device","method":"GET","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:49.603Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"4ca20bd8","endpoint":"/api/scheduler/active-device","method":"GET","httpStatus":200,"durationMs":8,"timestamp":"2026-05-26T08:09:49.611Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"2c709708","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:49.654Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_activated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"android"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"2c709708","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":43,"timestamp":"2026-05-26T08:09:49.697Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"3b3bfab7","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:49.735Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_activation_conflict","userEmail":"sc***@fundocareer.com","requester":"devi...uuid","active":"devi...uuid"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:284:15)
+
+  console.log
+    {"event":"api_request_finished","requestId":"3b3bfab7","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":409,"durationMs":59,"timestamp":"2026-05-26T08:09:49.794Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"08e9e23f","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:49.837Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_takeover","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"electron"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"08e9e23f","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":176,"timestamp":"2026-05-26T08:09:50.013Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"c34df7e1","endpoint":"/api/scheduler/active-device","method":"GET","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:50.027Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"c34df7e1","endpoint":"/api/scheduler/active-device","method":"GET","httpStatus":200,"durationMs":13,"timestamp":"2026-05-26T08:09:50.040Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"6d6c734d","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:50.090Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_activated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"android"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"6d6c734d","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":40,"timestamp":"2026-05-26T08:09:50.130Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"531b41fa","endpoint":"/api/scheduler/active-device/verify","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:50.141Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"531b41fa","endpoint":"/api/scheduler/active-device/verify","method":"POST","httpStatus":200,"durationMs":13,"timestamp":"2026-05-26T08:09:50.154Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"6d19f2a6","endpoint":"/api/scheduler/active-device/verify","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:50.174Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"6d19f2a6","endpoint":"/api/scheduler/active-device/verify","method":"POST","httpStatus":200,"durationMs":22,"timestamp":"2026-05-26T08:09:50.196Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"51abcedf","endpoint":"/api/scheduler/acquire-lock","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:50.209Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"lock_acquire","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","preferenceSet":"two-device-pref","granted":false,"reason":"device_not_active"}
+
+      at acquireLock (features/scheduler/controllers/scheduler.controller.js:62:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"51abcedf","endpoint":"/api/scheduler/acquire-lock","method":"POST","httpStatus":200,"durationMs":12,"timestamp":"2026-05-26T08:09:50.221Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"866e6b75","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:50.264Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_activated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"android"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"866e6b75","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":47,"timestamp":"2026-05-26T08:09:50.311Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"8ad932ba","endpoint":"/api/scheduler/active-device/deactivate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:50.321Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_deactivated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid"}
+
+      at deactivateDevice (features/scheduler/controllers/scheduler.controller.js:377:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"8ad932ba","endpoint":"/api/scheduler/active-device/deactivate","method":"POST","httpStatus":200,"durationMs":34,"timestamp":"2026-05-26T08:09:50.355Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"e636a1d5","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:50.369Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_activated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"electron"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"e636a1d5","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":43,"timestamp":"2026-05-26T08:09:50.412Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"95b0bbf2","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:50.468Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_activated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"android"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"95b0bbf2","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":48,"timestamp":"2026-05-26T08:09:50.516Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"4c6c247f","endpoint":"/api/scheduler/acquire-lock","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:50.530Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"lock_acquire","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","preferenceSet":"race-condition-pref","granted":true,"reason":null}
+
+      at acquireLock (features/scheduler/controllers/scheduler.controller.js:62:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"4c6c247f","endpoint":"/api/scheduler/acquire-lock","method":"POST","httpStatus":200,"durationMs":41,"timestamp":"2026-05-26T08:09:50.571Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"91d23290","endpoint":"/api/scheduler/acquire-lock","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:50.585Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"lock_acquire","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","preferenceSet":"race-condition-pref","granted":false,"reason":"device_not_active"}
+
+      at acquireLock (features/scheduler/controllers/scheduler.controller.js:62:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"91d23290","endpoint":"/api/scheduler/acquire-lock","method":"POST","httpStatus":200,"durationMs":8,"timestamp":"2026-05-26T08:09:50.593Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"41defd38","endpoint":"/api/scheduler/release-lock","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:50.612Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"lock_release","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","preferenceSet":"race-condition-pref","released":true}
+
+      at releaseLock (features/scheduler/controllers/scheduler.controller.js:94:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"41defd38","endpoint":"/api/scheduler/release-lock","method":"POST","httpStatus":200,"durationMs":38,"timestamp":"2026-05-26T08:09:50.650Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"65cb536b","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:50.660Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_takeover","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"electron"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"65cb536b","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":48,"timestamp":"2026-05-26T08:09:50.708Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"d20537ec","endpoint":"/api/scheduler/acquire-lock","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:50.720Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"lock_acquire","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","preferenceSet":"race-condition-pref","granted":true,"reason":null}
+
+      at acquireLock (features/scheduler/controllers/scheduler.controller.js:62:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"d20537ec","endpoint":"/api/scheduler/acquire-lock","method":"POST","httpStatus":200,"durationMs":43,"timestamp":"2026-05-26T08:09:50.763Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"59cd33dc","endpoint":"/api/scheduler/release-lock","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:50.775Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"lock_release","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","preferenceSet":"race-condition-pref","released":true}
+
+      at releaseLock (features/scheduler/controllers/scheduler.controller.js:94:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"59cd33dc","endpoint":"/api/scheduler/release-lock","method":"POST","httpStatus":200,"durationMs":39,"timestamp":"2026-05-26T08:09:50.814Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"8bdc9000","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:50.911Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_activated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"android"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"8bdc9000","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":48,"timestamp":"2026-05-26T08:09:50.959Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"cb84b833","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:51.004Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_activated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"android"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"cb84b833","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":38,"timestamp":"2026-05-26T08:09:51.042Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"eaf37755","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:51.052Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_activation_conflict","userEmail":"sc***@fundocareer.com","requester":"devi...uuid","active":"devi...uuid"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:284:15)
+
+  console.log
+    {"event":"api_request_finished","requestId":"eaf37755","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":409,"durationMs":7,"timestamp":"2026-05-26T08:09:51.059Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"9c80457b","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:51.119Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_activated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"android"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"9c80457b","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":42,"timestamp":"2026-05-26T08:09:51.161Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"4853687c","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:51.171Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_takeover","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"electron"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"4853687c","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":48,"timestamp":"2026-05-26T08:09:51.219Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"86478ea5","endpoint":"/api/scheduler/active-device","method":"GET","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:51.230Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"86478ea5","endpoint":"/api/scheduler/active-device","method":"GET","httpStatus":200,"durationMs":11,"timestamp":"2026-05-26T08:09:51.241Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"c0a5241d","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:51.295Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_activated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"android"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"c0a5241d","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":46,"timestamp":"2026-05-26T08:09:51.341Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"c43fbf05","endpoint":"/api/scheduler/active-device/verify","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:51.356Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"c43fbf05","endpoint":"/api/scheduler/active-device/verify","method":"POST","httpStatus":200,"durationMs":9,"timestamp":"2026-05-26T08:09:51.365Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"5c6064b1","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:51.411Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_activated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"android"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"5c6064b1","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":48,"timestamp":"2026-05-26T08:09:51.459Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"127eb314","endpoint":"/api/scheduler/active-device/verify","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:51.469Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"127eb314","endpoint":"/api/scheduler/active-device/verify","method":"POST","httpStatus":200,"durationMs":9,"timestamp":"2026-05-26T08:09:51.478Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"44a31415","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:51.523Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_activated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"android"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"44a31415","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":35,"timestamp":"2026-05-26T08:09:51.558Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"e3f4316a","endpoint":"/api/notifications/send-setup-email","method":"POST","userEmail":"sc***@fundocareer.com","hasAuthHeader":true,"timestamp":"2026-05-26T08:09:51.570Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"setup_email_request_received","timestamp":"2026-05-26T08:09:51.573Z","requestLogId":"5a68e6db","endpoint":"/api/notifications/send-setup-email","userEmail":"scheduler-test@fundocareer.com","to":"s***@fundocareer.com","preferenceId":"acceptance-pref","deviceId":"devi...uuid"}
+
+      at log (features/notifications/controllers/notifications.controller.js:21:13)
+
+  console.error
+    {"event":"setup_email_send_failed","timestamp":"2026-05-26T08:09:51.581Z","requestLogId":"5a68e6db","endpoint":"/api/notifications/send-setup-email","httpStatus":403,"userEmail":"scheduler-test@fundocareer.com","preferenceId":"acceptance-pref","errorCode":"DEVICE_NOT_ACTIVE"}
+
+    [0m [90m 17 |[39m   [36mconst[39m entry [33m=[39m { event[33m,[39m timestamp[33m:[39m [36mnew[39m [33mDate[39m()[33m.[39mtoISOString()[33m,[39m [33m...[39mdata }[33m;[39m
+     [90m 18 |[39m   [36mif[39m (level [33m===[39m [32m'error'[39m) {
+    [31m[1m>[22m[39m[90m 19 |[39m     console[33m.[39merror([33mJSON[39m[33m.[39mstringify(entry))[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 20 |[39m   } [36melse[39m {
+     [90m 21 |[39m     console[33m.[39mlog([33mJSON[39m[33m.[39mstringify(entry))[33m;[39m
+     [90m 22 |[39m   }[0m
+
+      at log (features/notifications/controllers/notifications.controller.js:19:13)
+      at sendSetupConfirmationEmail (features/notifications/controllers/notifications.controller.js:145:7)
+
+  console.log
+    {"event":"api_request_finished","requestId":"e3f4316a","endpoint":"/api/notifications/send-setup-email","method":"POST","httpStatus":403,"durationMs":18,"timestamp":"2026-05-26T08:09:51.588Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"9dcbd275","endpoint":"/api/notifications/send-setup-email","method":"POST","userEmail":"sc***@fundocareer.com","hasAuthHeader":true,"timestamp":"2026-05-26T08:09:51.600Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"setup_email_request_received","timestamp":"2026-05-26T08:09:51.603Z","requestLogId":"35b23c1a","endpoint":"/api/notifications/send-setup-email","userEmail":"scheduler-test@fundocareer.com","to":"s***@fundocareer.com","preferenceId":"acceptance-pref","deviceId":"devi...uuid"}
+
+      at log (features/notifications/controllers/notifications.controller.js:21:13)
+
+  console.log
+    {"event":"setup_email_sent_success","timestamp":"2026-05-26T08:09:51.612Z","requestLogId":"35b23c1a","endpoint":"/api/notifications/send-setup-email","httpStatus":200,"userEmail":"scheduler-test@fundocareer.com","to":"s***@fundocareer.com","preferenceId":"acceptance-pref","errorCode":"EMAIL_SENT"}
+
+      at log (features/notifications/controllers/notifications.controller.js:21:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"9dcbd275","endpoint":"/api/notifications/send-setup-email","method":"POST","httpStatus":200,"durationMs":17,"timestamp":"2026-05-26T08:09:51.617Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"72a47619","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:51.670Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_activated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"android"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"72a47619","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":49,"timestamp":"2026-05-26T08:09:51.719Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"d74ca270","endpoint":"/api/notifications/send-setup-email","method":"POST","userEmail":"sc***@fundocareer.com","hasAuthHeader":true,"timestamp":"2026-05-26T08:09:51.729Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"setup_email_request_received","timestamp":"2026-05-26T08:09:51.733Z","requestLogId":"2e5049df","endpoint":"/api/notifications/send-setup-email","userEmail":"scheduler-test@fundocareer.com","to":"s***@fundocareer.com","preferenceId":"acceptance-pref","deviceId":"devi...uuid"}
+
+      at log (features/notifications/controllers/notifications.controller.js:21:13)
+
+  console.log
+    {"event":"setup_email_sent_success","timestamp":"2026-05-26T08:09:51.741Z","requestLogId":"2e5049df","endpoint":"/api/notifications/send-setup-email","httpStatus":200,"userEmail":"scheduler-test@fundocareer.com","to":"s***@fundocareer.com","preferenceId":"acceptance-pref","errorCode":"EMAIL_SENT"}
+
+      at log (features/notifications/controllers/notifications.controller.js:21:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"d74ca270","endpoint":"/api/notifications/send-setup-email","method":"POST","httpStatus":200,"durationMs":14,"timestamp":"2026-05-26T08:09:51.743Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"0e41a357","endpoint":"/api/scheduler/active-device","method":"GET","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:51.752Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"0e41a357","endpoint":"/api/scheduler/active-device","method":"GET","httpStatus":200,"durationMs":8,"timestamp":"2026-05-26T08:09:51.760Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"5f7ea50c","endpoint":"/api/scheduler/sync-state","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:51.807Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"sync_state","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","type":"android"}
+
+      at syncState (features/scheduler/controllers/scheduler.controller.js:190:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"5f7ea50c","endpoint":"/api/scheduler/sync-state","method":"POST","httpStatus":200,"durationMs":39,"timestamp":"2026-05-26T08:09:51.846Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"bf1fa3dc","endpoint":"/api/scheduler/active-device","method":"GET","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:51.854Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"bf1fa3dc","endpoint":"/api/scheduler/active-device","method":"GET","httpStatus":200,"durationMs":9,"timestamp":"2026-05-26T08:09:51.863Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"91bc34e3","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:51.876Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_activated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"android"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"91bc34e3","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":43,"timestamp":"2026-05-26T08:09:51.919Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"9ecadb60","endpoint":"/api/scheduler/sync-state","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:51.928Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"sync_state","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","type":"android"}
+
+      at syncState (features/scheduler/controllers/scheduler.controller.js:190:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"9ecadb60","endpoint":"/api/scheduler/sync-state","method":"POST","httpStatus":200,"durationMs":37,"timestamp":"2026-05-26T08:09:51.965Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"c00ead9e","endpoint":"/api/scheduler/active-device","method":"GET","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:51.975Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"c00ead9e","endpoint":"/api/scheduler/active-device","method":"GET","httpStatus":200,"durationMs":8,"timestamp":"2026-05-26T08:09:51.983Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"8569f9b7","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:52.029Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_activated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"android"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"8569f9b7","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":40,"timestamp":"2026-05-26T08:09:52.069Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"27ee82c5","endpoint":"/api/scheduler/active-device","method":"GET","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:52.076Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"27ee82c5","endpoint":"/api/scheduler/active-device","method":"GET","httpStatus":200,"durationMs":10,"timestamp":"2026-05-26T08:09:52.086Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"a480200c","endpoint":"/api/scheduler/active-device/deactivate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:52.097Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_deactivated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid"}
+
+      at deactivateDevice (features/scheduler/controllers/scheduler.controller.js:377:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"a480200c","endpoint":"/api/scheduler/active-device/deactivate","method":"POST","httpStatus":200,"durationMs":34,"timestamp":"2026-05-26T08:09:52.131Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"e4bb4ccf","endpoint":"/api/scheduler/active-device","method":"GET","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:52.140Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"e4bb4ccf","endpoint":"/api/scheduler/active-device","method":"GET","httpStatus":200,"durationMs":9,"timestamp":"2026-05-26T08:09:52.149Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"cc8df919","endpoint":"/api/scheduler/active-device/activate","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:52.176Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"device_activated","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","platform":"android"}
+
+      at activateDevice (features/scheduler/controllers/scheduler.controller.js:300:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"cc8df919","endpoint":"/api/scheduler/active-device/activate","method":"POST","httpStatus":200,"durationMs":39,"timestamp":"2026-05-26T08:09:52.215Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"a31ffb16","endpoint":"/api/scheduler/sync-state","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:52.226Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"sync_state","userEmail":"sc***@fundocareer.com","deviceId":"devi...uuid","type":"android"}
+
+      at syncState (features/scheduler/controllers/scheduler.controller.js:190:13)
+
+  console.log
+    {"event":"api_request_finished","requestId":"a31ffb16","endpoint":"/api/scheduler/sync-state","method":"POST","httpStatus":200,"durationMs":58,"timestamp":"2026-05-26T08:09:52.284Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"7e8f5e22","endpoint":"/api/scheduler/history","method":"GET","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:52.292Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"7e8f5e22","endpoint":"/api/scheduler/history","method":"GET","httpStatus":200,"durationMs":12,"timestamp":"2026-05-26T08:09:52.304Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"29b369e8","endpoint":"/api/scheduler/history-summary","method":"POST","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:52.315Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"29b369e8","endpoint":"/api/scheduler/history-summary","method":"POST","httpStatus":200,"durationMs":27,"timestamp":"2026-05-26T08:09:52.342Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+  console.log
+    {"event":"api_request_started","requestId":"c6c3af23","endpoint":"/api/scheduler/user-timeline","method":"GET","userEmail":null,"hasAuthHeader":true,"timestamp":"2026-05-26T08:09:52.352Z"}
+
+      at schedulerDiagnosticsRequestLogger (app.js:121:11)
+
+  console.log
+    {"event":"api_request_finished","requestId":"c6c3af23","endpoint":"/api/scheduler/user-timeline","method":"GET","httpStatus":200,"durationMs":17,"timestamp":"2026-05-26T08:09:52.369Z"}
+
+      at ServerResponse.<anonymous> (app.js:134:13)
+
+Test Suites: 1 passed, 1 total
+Tests:       55 passed, 55 total
+Snapshots:   0 total
+Time:        25.544 s
+Ran all test suites.
+System.Management.Automation.RemoteException
+Jest has detected the following 1 open handle potentially keeping Jest from exiting:
+System.Management.Automation.RemoteException
+  ΓùÅ  CustomGC
+System.Management.Automation.RemoteException
+    [0m [90m 4 |[39m
+     [90m 5 |[39m [36mconst[39m require [33m=[39m createRequire([36mimport[39m[33m.[39mmeta[33m.[39murl)[33m;[39m
+    [31m[1m>[22m[39m[90m 6 |[39m [36mconst[39m pdfParse [33m=[39m require([32m"pdf-parse"[39m)[33m;[39m
+     [90m   |[39m                  [31m[1m^[22m[39m
+     [90m 7 |[39m [36mconst[39m mammoth [33m=[39m require([32m"mammoth"[39m)[33m;[39m
+     [90m 8 |[39m
+     [90m 9 |[39m [90m/**[39m[0m
+System.Management.Automation.RemoteException
+      at requireNative (node_modules/@napi-rs/canvas/js-binding.js:100:16)
+      at Object.<anonymous> (node_modules/@napi-rs/canvas/js-binding.js:319:17)
+      at Object.<anonymous> (node_modules/@napi-rs/canvas/index.js:19:5)
+      at Module.createRequire (node_modules/pdf-parse/node_modules/pdfjs-dist/legacy/build/pdf.mjs:14339:56)
+      at features/resume/services/resumeParser.service.js:6:18
+System.Management.Automation.RemoteException

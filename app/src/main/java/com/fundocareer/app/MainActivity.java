@@ -12,6 +12,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
+import com.fundocareer.app.core.logging.FcLog;
 import android.view.WindowManager;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -148,6 +149,10 @@ public class MainActivity extends BridgeActivity {
             String timedOut = loadingUrl;
             loadingUrl = null;
             logNetworkFailure("timeout", timedOut, "Page load exceeded " + (PAGE_LOAD_TIMEOUT_MS / 1000) + "s");
+            FcLog.INSTANCE.w(FcLog.TAG_WEBVIEW, "Page load timeout", new java.util.HashMap<String, Object>() {{
+                put("url", timedOut);
+                put("timeoutMs", PAGE_LOAD_TIMEOUT_MS);
+            }});
             showError("Request timed out. Tap to retry.");
         }
     };
@@ -830,22 +835,24 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void configureWebView(WebView webView) {
-        webView.getSettings().setJavaScriptEnabled(true);
-        webView.getSettings().setDomStorageEnabled(true);
-        webView.getSettings().setDatabaseEnabled(true);
-        webView.getSettings().setLoadWithOverviewMode(true);
-        webView.getSettings().setUseWideViewPort(true);
-        webView.getSettings().setSupportZoom(false);
-        webView.getSettings().setBuiltInZoomControls(false);
-        webView.getSettings().setDisplayZoomControls(false);
-        webView.getSettings().setTextZoom(100);
-        webView.getSettings().setAllowFileAccess(false);
-        webView.getSettings().setAllowContentAccess(true);
-        webView.getSettings().setCacheMode(WebSettings.LOAD_DEFAULT);
-        webView.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-        webView.getSettings().setMediaPlaybackRequiresUserGesture(false);
-        webView.getSettings().setJavaScriptCanOpenWindowsAutomatically(true);
-        webView.getSettings().setSupportMultipleWindows(true);
+        WebSettings ws = webView.getSettings();
+        ws.setJavaScriptEnabled(true);
+        ws.setDomStorageEnabled(true);
+        ws.setDatabaseEnabled(true);
+        ws.setUseWideViewPort(true);
+        ws.setLoadWithOverviewMode(false);
+        ws.setSupportZoom(false);
+        ws.setBuiltInZoomControls(false);
+        ws.setDisplayZoomControls(false);
+        ws.setTextZoom(100);
+        ws.setAllowFileAccess(false);
+        ws.setAllowContentAccess(true);
+        ws.setCacheMode(WebSettings.LOAD_DEFAULT);
+        ws.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        ws.setMediaPlaybackRequiresUserGesture(false);
+        ws.setJavaScriptCanOpenWindowsAutomatically(true);
+        ws.setSupportMultipleWindows(true);
+        ws.setLayoutAlgorithm(WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING);
 
         String ua = webView.getSettings().getUserAgentString();
         if (ua != null && !ua.contains("FundoCareerAndroidApp")) {
@@ -1003,6 +1010,11 @@ public class MainActivity extends BridgeActivity {
                         Log.w("FundoCareerApp", "Auth injection error on page start", e);
                     }
                 }
+                if (url != null) {
+                    FcLog.INSTANCE.i(FcLog.TAG_WEBVIEW, "Page load started", new java.util.HashMap<String, Object>() {{
+                        put("url", url);
+                    }});
+                }
                 if (BuildConfig.DEBUG) Log.i(TAG, "Loading: " + url);
                 Log.i(NAV_LOG_TAG, "WebView URL load started: " + url);
             }
@@ -1023,6 +1035,7 @@ public class MainActivity extends BridgeActivity {
                 if (view != null) {
                     injectPageSetup(view);
                     injectMobileAppStyles(view);
+                    injectCssVariables(view);
                     if (authManager != null && authManager.isLoggedIn()) {
                         try {
                             authManager.injectAuthState(view);
@@ -1034,6 +1047,11 @@ public class MainActivity extends BridgeActivity {
                     }
                 }
                 syncTabState(url);
+                if (url != null) {
+                    FcLog.INSTANCE.i(FcLog.TAG_WEBVIEW, "Page load finished", new java.util.HashMap<String, Object>() {{
+                        put("url", url);
+                    }});
+                }
                 if (url != null && navPolicy != null && navPolicy.shouldShowLoginGate(url)) {
                     showLoginOverlay();
                 }
@@ -1062,6 +1080,11 @@ public class MainActivity extends BridgeActivity {
                 timeoutHandler.removeCallbacks(timeoutRunnable);
                 String url = request != null && request.getUrl() != null ? request.getUrl().toString() : "unknown";
                 logNetworkFailure("webview_error", url, "ErrorCode=" + code + " desc=" + desc);
+                FcLog.INSTANCE.e(FcLog.TAG_WEBVIEW, "WebView load error", null, new java.util.HashMap<String, Object>() {{
+                    put("errorCode", code);
+                    put("description", desc);
+                    put("url", url);
+                }});
                 Log.e("FundoCareerApp", "WebView error [" + code + "] on " + url + " – " + desc);
                 if (request != null && request.isForMainFrame()) {
                     String msg;
@@ -1094,7 +1117,10 @@ public class MainActivity extends BridgeActivity {
                 int code = response != null ? response.getStatusCode() : -1;
                 String url = request != null && request.getUrl() != null ? request.getUrl().toString() : "unknown";
                 Log.w(TAG, "HTTP " + code + " for " + url);
-                Log.w("FundoCareerApp", "HTTP error " + code + " on " + url);
+                FcLog.INSTANCE.w(FcLog.TAG_WEBVIEW, "HTTP error", new java.util.HashMap<String, Object>() {{
+                    put("httpCode", code);
+                    put("url", url);
+                }});
                 if (request != null && request.isForMainFrame()) {
                     loadingUrl = null;
                     timeoutHandler.removeCallbacks(timeoutRunnable);
@@ -1133,6 +1159,11 @@ public class MainActivity extends BridgeActivity {
                     topProgressBar.setProgress(newProgress);
                     topProgressBar.setVisibility(newProgress >= 100 ? View.GONE : View.VISIBLE);
                     if (newProgress < 100) topProgressBar.bringToFront();
+                }
+                if (newProgress == 100 && loadingUrl != null) {
+                    FcLog.INSTANCE.d(FcLog.TAG_WEBVIEW, "Page load progress complete", new java.util.HashMap<String, Object>() {{
+                        put("url", loadingUrl);
+                    }});
                 }
             }
 
@@ -1893,15 +1924,33 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
+    private int getNavHeightPx() {
+        if (navCapsule == null || navCapsule.getVisibility() != View.VISIBLE) return 0;
+        float d = getResources().getDisplayMetrics().density;
+        int navRowHeight = (int)(60 * d);
+        int capsulePadTop = (int)(4 * d);
+        int capsulePadBottom = (int)(4 * d);
+        return navRowHeight + capsulePadTop + capsulePadBottom;
+    }
+
+    private void injectCssVariables(WebView wv) {
+        int navPx = getNavHeightPx();
+        String js = "(function(){try{" +
+            "var r=document.documentElement;" +
+            "r.style.setProperty('--native-bottom-nav-height','" + navPx + "px');" +
+            "r.style.setProperty('--safe-area-top','env(safe-area-inset-top,0px)');" +
+            "r.style.setProperty('--safe-area-bottom','env(safe-area-inset-bottom,0px)');" +
+            "}catch(e){}})()";
+        wv.evaluateJavascript(js, null);
+    }
+
     private void updateWebViewBottomPadding(boolean navVisible) {
         WebView wv = getSafeWebView();
         if (wv == null) return;
-        String padding = navVisible ? "80px" : "0px";
+        int navPx = navVisible ? getNavHeightPx() : 0;
         String js = "(function(){try{" +
-            "var s=document.getElementById('__fc_nav_pad')||function(){" +
-            "var e=document.createElement('style');e.id='__fc_nav_pad';" +
-            "if(document.head)document.head.appendChild(e);return e;}();" +
-            "s.textContent='body,main,[role=main],#app,.app{padding-bottom:" + padding + "!important}';" +
+            "var r=document.documentElement;" +
+            "r.style.setProperty('--native-bottom-nav-height','" + navPx + "px');" +
             "}catch(e){}})()";
         wv.evaluateJavascript(js, null);
     }
@@ -2473,16 +2522,18 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void injectPageSetup(WebView view) {
+        int navPx = getNavHeightPx();
         String js = "(function(){"
                 + "if(window.__fundocareerPageSetupDone)return;"
                 + "window.__fundocareerPageSetupDone=true;"
-                // Safe area CSS
-                + "if(!document.getElementById('__fundocareer_safe')){"
-                + "var s=document.createElement('style');"
-                + "s.id='__fundocareer_safe';"
-                + "s.innerHTML=':root{--sat:env(safe-area-inset-top);--sab:env(safe-area-inset-bottom);--sal:env(safe-area-inset-left);--sar:env(safe-area-inset-right)}';"
-                + "if(document.head)document.head.appendChild(s);"
-                + "}"
+                // App CSS contract variables
+                + "var r=document.documentElement;"
+                + "r.dataset.fundocareerApp='android';"
+                + "try{localStorage.setItem('FUNDOCareer_APP_MODE','android')}catch(e){}"
+                + "window.__fundocareerApp=true;"
+                + "r.style.setProperty('--native-bottom-nav-height','" + navPx + "px');"
+                + "r.style.setProperty('--safe-area-top','env(safe-area-inset-top,0px)');"
+                + "r.style.setProperty('--safe-area-bottom','env(safe-area-inset-bottom,0px)');"
                 // Mic tracking
                 + "if(!window.__fundocareer_mic){"
                 + "window.__fundocareer_mic=true;"
@@ -2508,48 +2559,44 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void injectMobileAppStyles(WebView view) {
+        String navHcss = "var(--native-bottom-nav-height,80px)";
+        String sabCss = "var(--safe-area-bottom,0px)";
         String js = "(function(){try{" +
                 "if(document.getElementById('__fc_fixes'))return;" +
-                "document.documentElement.dataset.fundocareerApp='android';" +
-                "try{localStorage.setItem('FUNDOCareer_APP_MODE','android')}catch(e){}" +
-                "window.__fundocareerApp=true;" +
                 "window.fundocareerAndroidApp='1.0';" +
                 "var a=document.createElement('style');" +
                 "a.id='__fc_fixes';" +
                 "a.textContent=[" +
                 // General app-mode foundation
                 "'html[data-fundocareer-app=android]{overscroll-behavior-y:contain!important;-webkit-text-size-adjust:100%!important;scroll-behavior:smooth!important}'" +
-                ",'html[data-fundocareer-app=android] body{overflow-x:hidden!important;max-width:100vw!important;padding-bottom:80px!important;font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased!important;margin:0!important}'" +
+                ",'html[data-fundocareer-app=android] body{overflow-x:hidden!important;max-width:100vw!important;padding-bottom:calc(" + navHcss + " + " + sabCss + ")!important;font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased!important;margin:0!important;width:100%!important}'" +
                 ",'::selection{background:var(--color-primary,#1a73e8);color:#fff}'" +
-                // Hide website chrome (header, nav, footer) + padding resets
-                ",'html[data-fundocareer-app=android] header,html[data-fundocareer-app=android] nav,html[data-fundocareer-app=android] .navbar,html[data-fundocareer-app=android] .site-header,html[data-fundocareer-app=android] .main-header,html[data-fundocareer-app=android] .top-nav,html[data-fundocareer-app=android] .nav-header,html[data-fundocareer-app=android] .app-header,html[data-fundocareer-app=android] .header-inner,html[data-fundocareer-app=android] [class*=navbar],html[data-fundocareer-app=android] [class*=topbar],html[data-fundocareer-app=android] [class*=header_],html[data-fundocareer-app=android] [class*=Header],html[data-fundocareer-app=android] [class*=nav_],html[data-fundocareer-app=android] [class*=Nav]{display:none!important}'" +
-                ",'html[data-fundocareer-app=android] .pt-20,html[data-fundocareer-app=android] .lg\\\\:pt-24,html[data-fundocareer-app=android] .pt-24,html[data-fundocareer-app=android] .md\\\\:pt-20{display:none!important}'" +
-                // Footer
-                ",'html[data-fundocareer-app=android] footer,html[data-fundocareer-app=android] .footer,html[data-fundocareer-app=android] .site-footer,html[data-fundocareer-app=android] .main-footer,html[data-fundocareer-app=android] [class*=footer],html[data-fundocareer-app=android] [class*=Footer]{display:none!important}'" +
+                // Hide website chrome (header, nav, footer)
+                ",'html[data-fundocareer-app=android] header,html[data-fundocareer-app=android] .navbar,html[data-fundocareer-app=android] .site-header,html[data-fundocareer-app=android] .main-header,html[data-fundocareer-app=android] .top-nav,html[data-fundocareer-app=android] .header-inner{display:none!important}'" +
+                ",'html[data-fundocareer-app=android] footer,html[data-fundocareer-app=android] .footer,html[data-fundocareer-app=android] .site-footer{display:none!important}'" +
                 // Touch targets (48px minimum)
-                ",'html[data-fundocareer-app=android] button,html[data-fundocareer-app=android] a,html[data-fundocareer-app=android] input,html[data-fundocareer-app=android] select,html[data-fundocareer-app=android] textarea,html[data-fundocareer-app=android] [role=button],html[data-fundocareer-app=android] [tabindex]:not([tabindex=\\'\\-1\\']){min-height:48px!important;font-size:16px!important}'" +
+                ",'html[data-fundocareer-app=android] button,html[data-fundocareer-app=android] a,html[data-fundocareer-app=android] input,html[data-fundocareer-app=android] select,html[data-fundocareer-app=android] textarea,html[data-fundocareer-app=android] [role=button]{min-height:48px!important;font-size:16px!important}'" +
                 ",'html[data-fundocareer-app=android] button,html[data-fundocareer-app=android] a,html[data-fundocareer-app=android] [role=button]{min-width:48px!important}'" +
                 // Responsive typography
-                ",'html[data-fundocareer-app=android] h1{font-size:1.5rem!important;line-height:1.3!important;letter-spacing:-0.02em!important}'" +
+                ",'html[data-fundocareer-app=android] h1{font-size:1.5rem!important;line-height:1.3!important}'" +
                 ",'html[data-fundocareer-app=android] h2{font-size:1.25rem!important;line-height:1.35!important}'" +
                 ",'html[data-fundocareer-app=android] h3{font-size:1.125rem!important;line-height:1.4!important}'" +
                 ",'html[data-fundocareer-app=android] h4{font-size:1rem!important;line-height:1.4!important}'" +
                 ",'html[data-fundocareer-app=android] p{font-size:0.938rem!important;line-height:1.5!important}'" +
                 ",'html[data-fundocareer-app=android] small,.text-sm{font-size:0.813rem!important}'" +
-                // Modern card styling
-                ",'html[data-fundocareer-app=android] [class*=card],html[data-fundocareer-app=android] [class*=Card]{border-radius:12px!important;box-shadow:0 2px 12px rgba(0,0,0,0.08)!important;margin-bottom:12px!important;overflow:hidden!important}'" +
+                // Cards fit mobile width
+                ",'html[data-fundocareer-app=android] [class*=card],html[data-fundocareer-app=android] [class*=Card]{border-radius:12px!important;box-shadow:0 2px 12px rgba(0,0,0,0.08)!important;margin-bottom:12px!important;overflow:hidden!important;width:100%!important;box-sizing:border-box!important}'" +
                 // Grid -> single column on mobile
                 ",'html[data-fundocareer-app=android] [class*=grid]{grid-template-columns:1fr!important}'" +
                 // Full-width buttons
-                ",'html[data-fundocareer-app=android] .btn,html[data-fundocareer-app=android] button[type=submit],html[data-fundocareer-app=android] [class*=btn]{width:100%!important;border-radius:8px!important;padding:14px 20px!important;text-align:center!important;justify-content:center!important}'" +
+                ",'html[data-fundocareer-app=android] .btn,html[data-fundocareer-app=android] button[type=submit],html[data-fundocareer-app=android] [class*=btn]{width:100%!important;border-radius:8px!important;padding:14px 20px!important;text-align:center!important;justify-content:center!important;box-sizing:border-box!important}'" +
                 // Forms
                 ",'html[data-fundocareer-app=android] form{width:100%!important}'" +
                 ",'html[data-fundocareer-app=android] [class*=form-group],html[data-fundocareer-app=android] [class*=formGroup]{width:100%!important;margin-bottom:1rem!important}'" +
                 ",'html[data-fundocareer-app=android] input:not([type=radio]):not([type=checkbox]),html[data-fundocareer-app=android] select,html[data-fundocareer-app=android] textarea{width:100%!important;box-sizing:border-box!important;min-height:48px!important;padding:12px 14px!important;border-radius:8px!important;font-size:16px!important;margin-bottom:0!important}'" +
                 ",'html[data-fundocareer-app=android] label{font-size:0.875rem!important;margin-bottom:4px!important;display:block!important;font-weight:500!important}'" +
-                // Modals & dialogs
+                // Modals & dialogs fit screen
                 ",'html[data-fundocareer-app=android] [class*=modal],html[data-fundocareer-app=android] [class*=dialog],html[data-fundocareer-app=android] [class*=Modal],html[data-fundocareer-app=android] [class*=Dialog]{width:95vw!important;max-width:95vw!important;max-height:90vh!important;border-radius:16px!important}'" +
-                ",'html[data-fundocareer-app=android] [class*=modal-content],html[data-fundocareer-app=android] [class*=modalContent]{padding:1.25rem!important}'" +
                 // Tables -> scrollable
                 ",'html[data-fundocareer-app=android] table,html[data-fundocareer-app=android] [class*=table],html[data-fundocareer-app=android] [class*=dataTable]{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%!important}'" +
                 // Images
@@ -2561,41 +2608,24 @@ public class MainActivity extends BridgeActivity {
                 ",'html[data-fundocareer-app=android] [class*=score],html[data-fundocareer-app=android] [class*=circle]{max-width:80px!important;max-height:80px!important}'" +
                 // Route-specific: Mock Interview
                 ",'html[data-fundocareer-app=android] [class*=mock],html[data-fundocareer-app=android] [class*=interview]{padding:1rem!important}'" +
-                ",'html[data-fundocareer-app=android] .ai-sphere{min-height:35vh!important}'" +
-                ",'html[data-fundocareer-app=android] .user-sphere{height:25vh!important;min-height:140px!important}'" +
-                ",'html[data-fundocareer-app=android] [class*=mic-button],html[data-fundocareer-app=android] [class*=micBtn]{width:64px!important;height:64px!important;border-radius:50%!important;min-width:64px!important;min-height:64px!important}'" +
-                // Route-specific: Pricing
-                ",'html[data-fundocareer-app=android] [class*=pricing]{padding:1rem!important}'" +
-                ",'html[data-fundocareer-app=android] [class*=pricing-grid],html[data-fundocareer-app=android] [class*=plans-grid]{grid-template-columns:1fr!important;gap:1rem!important}'" +
-                ",'html[data-fundocareer-app=android] [class*=plan-card]{margin-bottom:1rem!important;border-radius:12px!important}'" +
-                ",'html[data-fundocareer-app=android] [class*=plan-card] [class*=price]{font-size:1.75rem!important}'" +
+                ",'html[data-fundocareer-app=android] [class*=mic-button],html[data-fundocareer-app=android] [class*=micBtn]{width:64px!important;height:64px!important;border-radius:50%!important}'" +
                 // Route-specific: Resume Builder
                 ",'html[data-fundocareer-app=android] [class*=builder],html[data-fundocareer-app=android] [class*=resume-editor],html[data-fundocareer-app=android] [class*=editor]{padding:0!important}'" +
                 ",'html[data-fundocareer-app=android] [class*=resume-list],html[data-fundocareer-app=android] [class*=templates]{padding:1rem!important}'" +
                 // Route-specific: Profile
                 ",'html[data-fundocareer-app=android] [class*=profile]{padding:1rem!important}'" +
                 ",'html[data-fundocareer-app=android] [class*=avatar]{width:64px!important;height:64px!important}'" +
-                // Route-specific: Job Application
-                ",'html[data-fundocareer-app=android] [class*=application],html[data-fundocareer-app=android] [class*=apply]{padding:1rem!important}'" +
-                ",'html[data-fundocareer-app=android] [class*=file-upload],html[data-fundocareer-app=android] [class*=fileUpload],html[data-fundocareer-app=android] [class*=upload]{padding:2rem 1rem!important;min-height:100px!important;border-radius:12px!important}'" +
-                // Route-specific: Jobs list
-                ",'html[data-fundocareer-app=android] [class*=job-list],html[data-fundocareer-app=android] [class*=jobs]{padding:1rem!important}'" +
-                ",'html[data-fundocareer-app=android] [class*=job-card],html[data-fundocareer-app=android] [class*=JobCard]{padding:1rem!important;margin-bottom:12px!important;border-radius:12px!important}'" +
-                // Container spacing
-                ",'html[data-fundocareer-app=android] .container,html[data-fundocareer-app=android] [class*=container]{padding-left:1rem!important;padding-right:1rem!important}'" +
-                // Marketing / hero compact
-                ",'html[data-fundocareer-app=android] [class*=hero]{min-height:auto!important;padding:2rem 1rem!important}'" +
-                ",'html[data-fundocareer-app=android] [class*=marketing]{padding-block:1.5rem!important}'" +
-                // Bottom gutter for native nav on all content containers
-                ",'html[data-fundocareer-app=android] main,html[data-fundocareer-app=android] [role=main],html[data-fundocareer-app=android] #app,html[data-fundocareer-app=android] .app{padding-bottom:80px!important}'" +
-                // Fix bottom action bars to not overlap nav
-                ",'html[data-fundocareer-app=android] [class*=action-bar],html[data-fundocareer-app=android] [class*=ActionBar],html[data-fundocareer-app=android] [class*=sticky-bottom],html[data-fundocareer-app=android] [class*=bottom-bar]{bottom:84px!important}'" +
-                // Ensure no horizontal scroll
-                ",'html[data-fundocareer-app=android] .row,html[data-fundocareer-app=android] [class*=row]{overflow-x:hidden!important}'" +
+                // Route-specific: profile action buttons
+                ",'html[data-fundocareer-app=android] [class*=profile] [class*=btn],html[data-fundocareer-app=android] [class*=profile] button[type=button]{width:auto!important;min-width:48px!important;padding:12px 16px!important}'" +
+                // Bottom gutter using CSS variable
+                ",'html[data-fundocareer-app=android] main,html[data-fundocareer-app=android] [role=main],html[data-fundocareer-app=android] #app,html[data-fundocareer-app=android] .app{padding-bottom:calc(" + navHcss + " + " + sabCss + ")!important}'" +
+                // Fix bottom sticky bars to not overlap nav
+                ",'html[data-fundocareer-app=android] [class*=action-bar],html[data-fundocareer-app=android] [class*=ActionBar],html[data-fundocareer-app=android] [class*=sticky-bottom],html[data-fundocareer-app=android] [class*=bottom-bar]{bottom:calc(" + navHcss + " + " + sabCss + " + 8px)!important}'" +
+                // Category chips horizontal scroll
+                ",'html[data-fundocareer-app=android] [class*=chips],html[data-fundocareer-app=android] [class*=categories],html[data-fundocareer-app=android] [class*=tags]{overflow-x:auto!important;-webkit-overflow-scrolling:touch!important;flex-wrap:nowrap!important}'" +
                 "].join('');" +
-                // Phase 8: Guard appendChild
                 "if(document.head){document.head.appendChild(a);}" +
-                // Viewport meta
+                // Ensure viewport meta
                 "var vp=document.querySelector('meta[name=viewport]');" +
                 "if(!vp){vp=document.createElement('meta');vp.name='viewport';vp.content='width=device-width,initial-scale=1.0,maximum-scale=1.0,viewport-fit=cover';if(document.head){document.head.appendChild(vp);}}" +
                 // Auto-scroll into view on focus (keyboard avoidance)
@@ -2605,9 +2635,6 @@ public class MainActivity extends BridgeActivity {
                 "setTimeout(function(){try{e.target.scrollIntoView({behavior:'smooth',block:'center',inline:'nearest'})}catch(ex){} },400)" +
                 "}" +
                 "});" +
-                // Ensure main content fills viewport
-                "var main=document.querySelector('main,#app,.app,[role=main]');" +
-                "if(main){var h=window.innerHeight;main.style.minHeight=h+'px';window.addEventListener('resize',function(){if(window.innerHeight>h){h=window.innerHeight;main.style.minHeight=h+'px'}})}" +
                 "}catch(e){}})()";
         view.evaluateJavascript(js, null);
     }

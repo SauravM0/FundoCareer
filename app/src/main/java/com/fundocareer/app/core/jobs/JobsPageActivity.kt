@@ -1,21 +1,17 @@
 package com.fundocareer.app.core.jobs
 
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
-import com.fundocareer.app.core.jobalerts.ui.theme.JobAlertsTheme
+import com.fundocareer.app.core.logging.FcLog
 
 class JobsPageActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Log.i("JobsPageActivity", "scheduler screen opened")
-        enableEdgeToEdge()
+        FcLog.i(FcLog.TAG_APP, "JobsPageActivity created")
         setContent {
-            JobAlertsTheme {
-                JobsPageScreen(onBack = { finish() })
-            }
+            JobsPageScreen(onBack = { finish() })
         }
     }
 }
